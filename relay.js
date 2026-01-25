@@ -1,7 +1,7 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
  * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. This version uses 'liveId' to target a specific video directly.
- * 3. Ensure your 'TWITCH_ACCESS_TOKEN' in GitHub Secrets has 'chat:edit' permissions.
+ * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
+ * 3. This script auto-retries every 30s until you go live on PlayStation.
  */
 
 const tmi = require('tmi.js');
@@ -10,6 +10,7 @@ const fetch = require('node-fetch');
 
 // 1. CONFIGURATION
 const TWITCH_CHANNEL = 'werewolf3788'; 
+const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; 
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
 
 // 2. TWITCH SETUP
@@ -18,15 +19,54 @@ const twitchClient = new tmi.Client({
     connection: { secure: true, reconnect: true },
     identity: {
         username: TWITCH_CHANNEL,
-        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
+        password: process.env.TWITCH_ACCESS_TOKEN.startsWith('oauth:') ? 
+                  process.env.TWITCH_ACCESS_TOKEN : `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
     },
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. RELAY FUNCTION (Pushes to WordPress/Discord)
-async function relayMessage(username, message, platform) {
+// 3. YOUTUBE SETUP (With Browser Headers to prevent blocking)
+const ytChat = new LiveChat({ 
+    channelId: YT_CHANNEL_ID,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+});
+
+// 4. THE AUTO-START LOGIC
+async function startYouTubeRelay() {
     try {
-        const response = await fetch(WP_URL, {
+        console.log(`[🔍] Bot is looking for your stream on ${YT_CHANNEL_ID}...`);
+        const ok = await ytChat.start();
+        if (ok) {
+            console.log("[✔] Connected! YouTube messages will now appear on your PlayStation TV.");
+        }
+    } catch (err) {
+        // Keeps trying until you hit 'Go Live' in Lightstream/YouTube
+        console.log("[!] YouTube hasn't detected your stream yet. Retrying in 30s...");
+        setTimeout(startYouTubeRelay, 30000); 
+    }
+}
+
+// 5. THE MAGIC: YouTube -> Twitch Overlay on TV
+ytChat.on("chat", (chatItem) => {
+    const username = chatItem.author.name;
+    const message = chatItem.message[0].text;
+    const combinedMsg = `[YT] ${username}: ${message}`;
+
+    console.log(`[LISTEN] YouTube heard: ${username}: ${message}`);
+
+    // This puts the message on your TV via Twitch chat overlay/TTS
+    twitchClient.say(TWITCH_CHANNEL, combinedMsg).catch(e => console.error("Twitch Sync Error:", e.message));
+
+    // Also send to Discord/WordPress Bridge
+    relayToBridge(username, message, 'YouTube');
+});
+
+// Relay function for Discord
+async function relayToBridge(username, message, platform) {
+    try {
+        await fetch(WP_URL, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -35,61 +75,11 @@ async function relayMessage(username, message, platform) {
             },
             body: JSON.stringify({ username, message, platform })
         });
-        
-        if (response.ok) {
-            console.log(`[${platform}] Relayed: ${username}`);
-        } else {
-            console.log(`[${platform}] WordPress Error: ${response.status}`);
-        }
-    } catch (err) {
-        console.error(`[${platform}] Relay Error:`, err.message);
-    }
+    } catch (e) { /* Silent fail to keep bot running */ }
 }
 
-// 4. TWITCH LISTENER
-twitchClient.on('message', (channel, tags, message, self) => {
-    if (self) return;
-    relayMessage(tags['display-name'], message, 'Twitch');
-});
-
-// 5. YOUTUBE LISTENER (Hardwired for this stream)
-const ytChat = new LiveChat({ 
-    liveId: 'TsVqkdrOJIA', // Targeted directly to your current live session
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-});
-
-// This function starts the listener for the specific liveId
-async function startYouTube() {
-    try {
-        const ok = await ytChat.start();
-        if (ok) {
-            console.log(`[✔] YouTube Connected to Live ID: TsVqkdrOJIA`);
-            console.log("[✔] Relay is Live and Listening!");
-        }
-    } catch (err) {
-        console.log(`[!] YouTube connection failed. Retrying in 10s...`);
-        setTimeout(startYouTube, 10000); 
-    }
-}
-
-ytChat.on("chat", (chatItem) => {
-    const username = chatItem.author.name;
-    const message = chatItem.message[0].text;
-    console.log(`[YT] ${username}: ${message}`);
-    
-    // A. Relay to WordPress (Discord)
-    relayMessage(username, message, 'YouTube');
-    
-    // B. Sync YouTube Message into Twitch Chat
-    twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`).catch((err) => {
-        console.error("Twitch Sync Error:", err);
-    });
-});
-
-// 6. START EVERYTHING
+// 6. START
 twitchClient.connect().then(() => {
-    console.log("[✔] Twitch Connected");
-    startYouTube();
-}).catch(err => console.error("Twitch Connection Failed:", err));
+    console.log("[✔] Twitch Connected successfully.");
+    startYouTubeRelay();
+}).catch(err => console.error("Twitch Login Failed. Check your Token in GitHub Secrets!", err));
