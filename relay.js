@@ -64,14 +64,22 @@ const ytChat = new LiveChat({
 // This function keeps trying until it finds your live stream automatically
 async function startYouTube() {
     try {
-        await ytChat.start();
-        console.log(`[✔] YouTube Connected to channel: ${YT_CHANNEL_ID}`);
-        console.log("[✔] Relay is Live and Listening!");
+        const ok = await ytChat.start();
+        if (ok) {
+            console.log(`[✔] YouTube Connected to channel: ${YT_CHANNEL_ID}`);
+            console.log("[✔] Relay is Live and Listening!");
+        }
     } catch (err) {
         console.log(`[!] Waiting for live stream on ${YT_CHANNEL_ID}... Retrying in 30s.`);
-        setTimeout(startYouTube, 30000); // Wait 30 seconds and try again
+        setTimeout(startYouTube, 30000); 
     }
 }
+
+// Reconnect YouTube if it drops mid-stream
+ytChat.on("error", (err) => {
+    console.error("[!] YouTube Connection Dropped. Restarting...");
+    setTimeout(startYouTube, 5000);
+});
 
 ytChat.on("chat", (chatItem) => {
     const username = chatItem.author.name;
