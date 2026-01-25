@@ -1,3 +1,8 @@
+/* * SHARING NOTE: 
+ * To share this with friends (Seth, TJ, Michael, Ray):
+ * 1. Give them a copy of this file and the package.json.
+ * 2. Tell them to change the 'TWITCH_CHANNEL' below to their own.
+ */
 const tmi = require('tmi.js');
 const fetch = require('node-fetch');
 const { YoutubeChat } = require('youtube-chat');
