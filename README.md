@@ -35,3 +35,17 @@ Go to Advanced Settings: Open your browser and go directly to youtube.com/accoun
 Copy the ID: You will see two IDs listed. Look for the one that says "Channel ID" and copy the long string of characters next to it.
 
 Update relay.js: Paste that "UC..." string into your code where it says YOUR_YOUTUBE_CHANNEL_ID.
+🛠️ How to get the ID
+Log In: Use your Trovo account (the one you use for werewolf3788).
+
+Create Application: Look for a button that says "New Application" or "Create App".
+
+Fill the Info:
+
+Name: You can just call it Werewolf Relay.
+
+Redirect URL: You can just use http://localhost. (Since we aren't using a website for login, this doesn't matter much for our script).
+
+Category: Usually "Chat Bot" or "Other".
+
+Save & Copy: Once you hit save, you will see a Client ID (and a Client Secret). You only need the Client ID for the script we wrote.
