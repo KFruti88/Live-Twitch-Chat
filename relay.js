@@ -1,87 +1,39 @@
-/* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
- * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. This bot acts as a Central Dispatcher to prevent loops.
- */
-
-const tmi = require('tmi.js');
-const { LiveChat } = require('youtube-chat');
+const io = require('socket.io-client');
 const fetch = require('node-fetch');
 
 // 1. CONFIGURATION
-const TWITCH_CHANNEL = 'werewolf3788'; 
-const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; 
+// Find your token at: https://streamlabs.com/dashboard#/settings/api-settings -> API Tokens
+const STREAMLABS_TOKEN = 'YOUR_SOCKET_API_TOKEN_HERE'; 
 const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY';
 
-// 2. TWITCH SETUP
-const twitchClient = new tmi.Client({
-    options: { debug: false },
-    connection: { secure: true, reconnect: true },
-    identity: {
-        username: TWITCH_CHANNEL,
-        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
-    },
-    channels: [TWITCH_CHANNEL]
+// 2. CONNECT TO STREAMLABS
+const streamlabs = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, {
+    transports: ['websocket']
 });
 
-// 3. CENTRAL DISPATCHER (The Loop-Killer)
-async function broadcast(username, message, sourcePlatform) {
-    // A. STOP THE LOOP: If it's already a relay message, exit now.
-    if (message.startsWith('[YT]') || message.startsWith('[TW]') || message.startsWith('[TR]')) {
-        return; 
-    }
-
-    const relayMessage = `[${sourcePlatform}] ${username}: ${message}`;
-    console.log(`[DISPATCH] From ${sourcePlatform}: ${username}`);
-
-    // B. SEND TO TWITCH (Shows on your TV Overlay)
-    if (sourcePlatform !== 'TW') {
-        twitchClient.say(TWITCH_CHANNEL, relayMessage).catch(() => {});
-    }
-
-    // C. SEND TO DISCORD
-    relayToDiscord(relayMessage);
-
-    // NOTE: Posting TO YouTube or Trovo requires extra API Keys (Google/Trovo Dev)
-}
-
-// 4. THE "LIGHTSTREAM" TRIGGER (Silent Watch)
-let ytChat;
-let isLive = false;
-
-async function monitorLiveStatus() {
-    if (isLive) return;
-
-    console.log(`[🔍] Watching Lightstream feed via YouTube (${YT_CHANNEL_ID})...`);
-    
-    try {
-        ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
-        const connected = await ytChat.start();
-        
-        if (connected) {
-            isLive = true;
-            console.log("[✔] Lightstream detected! Syncing all platforms.");
-            
-            ytChat.on("chat", (chatItem) => {
-                broadcast(chatItem.author.name, chatItem.message[0].text, 'YT');
-            });
-
-            ytChat.on("error", () => {
-                isLive = false;
-                monitorLiveStatus();
-            });
-        }
-    } catch (err) {
-        setTimeout(monitorLiveStatus, 60000); // Check every minute
-    }
-}
-
-// 5. LISTENERS
-twitchClient.on('message', (channel, tags, message, self) => {
-    if (self) return;
-    broadcast(tags['display-name'], message, 'TW');
+streamlabs.on('connect', () => {
+    console.log("[✔] Connected to Streamlabs Universal Feed!");
 });
 
-// 6. HELPERS
+// 3. THE RELAY ENGINE (Listens to ALL platforms at once)
+streamlabs.on('event', (eventData) => {
+    // We are looking for 'chat' messages from any platform
+    if (eventData.type === 'message') {
+        const platform = eventData.for || 'Stream'; // e.g., 'youtube_account', 'twitch_account'
+        const username = eventData.message[0].from;
+        const text = eventData.message[0].text;
+
+        // Skip our own bot's relay messages to prevent loops
+        if (text.startsWith('[YT]') || text.startsWith('[TW]') || text.startsWith('[TR]')) return;
+
+        const formattedMsg = `[${platform.split('_')[0].toUpperCase()}] ${username}: ${text}`;
+        console.log(`[RELAY] ${formattedMsg}`);
+
+        // Send to Discord
+        relayToDiscord(formattedMsg);
+    }
+});
+
 async function relayToDiscord(content) {
     try {
         await fetch(DISCORD_WEBHOOK, {
@@ -89,11 +41,5 @@ async function relayToDiscord(content) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: `**${content}**` })
         });
-    } catch (e) {}
+    } catch (e) { console.error("Discord Error"); }
 }
-
-// 7. START
-twitchClient.connect().then(() => {
-    console.log("[✔] Dispatcher Online.");
-    monitorLiveStatus();
-});
