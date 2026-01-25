@@ -23,10 +23,14 @@ client.on('message', (channel, tags, message, self) => {
 
     console.log(`[*] Twitch Message from ${tags['display-name']}: ${message}`);
 
-    // PUSH TO WORDPRESS BRIDGE
+    // PUSH TO WORDPRESS BRIDGE WITH SECRETS IN HEADERS
     fetch(WP_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID, // Syncs from GitHub Secret
+            'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN   // Syncs from GitHub Secret
+        },
         body: JSON.stringify({
             username: tags['display-name'],
             message: message,
