@@ -1,6 +1,6 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
  * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
+ * 2. This version uses 'liveId' to target a specific video directly.
  * 3. Ensure your 'TWITCH_ACCESS_TOKEN' in GitHub Secrets has 'chat:edit' permissions.
  */
 
@@ -10,7 +10,6 @@ const fetch = require('node-fetch');
 
 // 1. CONFIGURATION
 const TWITCH_CHANNEL = 'werewolf3788'; 
-const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; 
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
 
 // 2. TWITCH SETUP
@@ -53,33 +52,27 @@ twitchClient.on('message', (channel, tags, message, self) => {
     relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-// 5. AUTO-CONNECTING YOUTUBE ENGINE
+// 5. YOUTUBE LISTENER (Hardwired for this stream)
 const ytChat = new LiveChat({ 
-    channelId: YT_CHANNEL_ID,
+    liveId: 'TsVqkdrOJIA', // Targeted directly to your current live session
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 });
 
-// This function keeps trying until it finds your live stream automatically
+// This function starts the listener for the specific liveId
 async function startYouTube() {
     try {
         const ok = await ytChat.start();
         if (ok) {
-            console.log(`[✔] YouTube Connected to channel: ${YT_CHANNEL_ID}`);
+            console.log(`[✔] YouTube Connected to Live ID: TsVqkdrOJIA`);
             console.log("[✔] Relay is Live and Listening!");
         }
     } catch (err) {
-        console.log(`[!] Waiting for live stream on ${YT_CHANNEL_ID}... Retrying in 30s.`);
-        setTimeout(startYouTube, 30000); 
+        console.log(`[!] YouTube connection failed. Retrying in 10s...`);
+        setTimeout(startYouTube, 10000); 
     }
 }
-
-// Reconnect YouTube if it drops mid-stream
-ytChat.on("error", (err) => {
-    console.error("[!] YouTube Connection Dropped. Restarting...");
-    setTimeout(startYouTube, 5000);
-});
 
 ytChat.on("chat", (chatItem) => {
     const username = chatItem.author.name;
@@ -90,7 +83,9 @@ ytChat.on("chat", (chatItem) => {
     relayMessage(username, message, 'YouTube');
     
     // B. Sync YouTube Message into Twitch Chat
-    twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`).catch(() => {});
+    twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`).catch((err) => {
+        console.error("Twitch Sync Error:", err);
+    });
 });
 
 // 6. START EVERYTHING
