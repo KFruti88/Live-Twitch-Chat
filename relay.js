@@ -1,45 +1,62 @@
 const tmi = require('tmi.js');
 const fetch = require('node-fetch');
+const { YoutubeChat } = require('youtube-chat');
+const Trovo = require('trovo.js');
 
 // 1. CONFIGURATION
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
-const TWITCH_CHANNEL = 'werewolf3788';
 
-// 2. INITIALIZE TWITCH CLIENT
-const client = new tmi.Client({
-    connection: {
-        secure: true,
-        reconnect: true
-    },
-    channels: [ TWITCH_CHANNEL ]
+// --- 2. TWITCH LISTENER ---
+const twitchClient = new tmi.Client({
+    connection: { secure: true, reconnect: true },
+    channels: ['werewolf3788']
+});
+twitchClient.connect().catch(console.error);
+
+twitchClient.on('message', (channel, tags, message, self) => {
+    if (self) return;
+    relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-client.connect().catch(console.error);
+// --- 3. YOUTUBE LISTENER ---
+// Replace with your actual UC... Channel ID
+const ytChat = new YoutubeChat('YOUR_YOUTUBE_CHANNEL_ID'); 
+ytChat.on('message', msg => {
+    relayMessage(msg.author.name, msg.text, 'YouTube');
+});
+ytChat.connect().catch(err => console.error("YouTube Connect Error:", err));
 
-// 3. MESSAGE HANDLER
-client.on('message', (channel, tags, message, self) => {
-    // Ignore messages from the bot itself to prevent infinite loops
-    if (self) return;
+// --- 4. TROVO LISTENER ---
+// Requires a Trovo Client ID from developer.trovo.live
+const trovo = new Trovo.Client({
+    clientId: 'YOUR_TROVO_CLIENT_ID' 
+});
+trovo.chat.connect();
+trovo.chat.on('message', message => {
+    relayMessage(message.author.name, message.content, 'Trovo');
+});
 
-    console.log(`[*] Twitch Message from ${tags['display-name']}: ${message}`);
+// --- 5. THE SHARED RELAY FUNCTION ---
+// This pushes all messages to your WordPress bridge using GitHub Secrets
+function relayMessage(username, message, platform) {
+    console.log(`[*] ${platform} Message from ${username}: ${message}`);
 
-    // PUSH TO WORDPRESS BRIDGE WITH SECRETS IN HEADERS
     fetch(WP_URL, {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
-            'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID, // Syncs from GitHub Secret
-            'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN   // Syncs from GitHub Secret
+            'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID,
+            'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN 
         },
         body: JSON.stringify({
-            username: tags['display-name'],
+            username: username,
             message: message,
-            platform: 'Twitch'
+            platform: platform
         })
     })
     .then(res => {
-        if (res.ok) console.log("Successfully relayed to WordPress -> Discord");
-        else console.log("WordPress returned an error.");
+        if (res.ok) console.log(`[${platform}] Successfully relayed to WordPress`);
+        else console.log(`[${platform}] WordPress returned an error.`);
     })
-    .catch(err => console.error("Relay Network Error:", err));
-});
+    .catch(err => console.error(`[${platform}] Relay Network Error:`, err));
+}
