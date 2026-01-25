@@ -30,3 +30,8 @@ In your GitHub repo, go to **Settings > Secrets and variables > Actions** and ad
 
 ### 4. Update the Code
 Edit the `relay.js` file and change the `TWITCH_CHANNEL` to your handle (e.g., `Phoenix_Darkfire`).
+Go to Advanced Settings: Open your browser and go directly to youtube.com/account_advanced. (You must be signed in).
+
+Copy the ID: You will see two IDs listed. Look for the one that says "Channel ID" and copy the long string of characters next to it.
+
+Update relay.js: Paste that "UC..." string into your code where it says YOUR_YOUTUBE_CHANNEL_ID.
