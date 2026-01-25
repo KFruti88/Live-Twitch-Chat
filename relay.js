@@ -3,6 +3,13 @@
  * 2. Change 'YOUR_YOUTUBE_CHANNEL_ID' to your UC... ID.
  * 3. This code will automatically use the Discord Webhook you put in GitHub Secrets!
  */
+// --- 3. TROVO LISTENER (WAITING FOR APPROVAL) ---
+/* const trovo = new Trovo.Client({
+    clientId: 'YOUR_TROVO_CLIENT_ID' 
+});
+trovo.chat.connect();
+... 
+*/
 const tmi = require('tmi.js');
 const fetch = require('node-fetch');
 const { YoutubeChat } = require('youtube-chat');
