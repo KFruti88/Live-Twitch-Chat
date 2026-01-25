@@ -1,7 +1,7 @@
-/* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
- * 1. This is the IDLE version—it stays connected and waits for you to go live.
- * 2. It syncs all platforms to your Twitch chat for on-screen TV viewing.
- * 3. Timezone set to America/New_York (Gainesville).
+/* * SHARING NOTE FROM WEREWOLF3788:
+ * 1. Seth, Michael, TJ (Dark Terror), Ray: Fork this to sync your own chats!
+ * 2. Add 'STREAMLABS_TOKEN' and 'TWITCH_ACCESS_TOKEN' to your GitHub Secrets.
+ * 3. This version stays IDLE and waits for your Streamlabs socket to pulse.
  */
 
 const io = require('socket.io-client');
@@ -12,7 +12,7 @@ const fetch = require('node-fetch');
 const TWITCH_CHANNEL = 'werewolf3788'; 
 const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY';
 
-// 2. TWITCH SETUP
+// 2. TWITCH SETUP (The "TV Injector")
 const twitchClient = new tmi.Client({
     options: { debug: false },
     connection: { secure: true, reconnect: true },
@@ -23,23 +23,24 @@ const twitchClient = new tmi.Client({
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. STREAMLABS SOCKET (The Idle Connection)
+// 3. STREAMLABS SOCKET (The Universal Switch)
 const streamlabs = io(`https://sockets.streamlabs.com?token=${process.env.STREAMLABS_TOKEN}`, {
     transports: ['websocket']
 });
 
-// 4. THE DISPATCHER
+// 4. THE DISPATCHER (With NY/Gainesville Time)
 async function broadcast(username, message, rawPlatform) {
-    // Prevent Echo/Loop: Ignore messages already tagged by the bot
+    // A. STOP LOOPS: Ignore messages that already have our relay tags
     if (message.startsWith('[YT]') || message.startsWith('[TW]') || message.startsWith('[TR]') || message.startsWith('[FB]')) return;
 
-    // Gainesville/NY Timestamp
+    // B. GET LOCAL TIME (EST)
     const time = new Date().toLocaleTimeString("en-US", {
         timeZone: "America/New_York",
         hour: '2-digit',
         minute: '2-digit'
     });
 
+    // C. IDENTIFY SOURCE
     let tag = '??';
     if (rawPlatform.includes('youtube')) tag = 'YT';
     if (rawPlatform.includes('twitch')) tag = 'TW';
@@ -47,21 +48,19 @@ async function broadcast(username, message, rawPlatform) {
     if (rawPlatform.includes('facebook')) tag = 'FB';
 
     const formattedMsg = `[${time}] [${tag}] ${username}: ${message}`;
-    console.log(`[IDLE LOG] ${formattedMsg}`);
+    console.log(`[WEREWOLF3788 SYNC] ${formattedMsg}`);
 
-    // A. Send to Discord
+    // D. RELAY TO DISCORD
     relayToDiscord(formattedMsg);
 
-    // B. Send to Twitch (Injects into your TV overlay/TTS)
+    // E. RELAY TO TWITCH (Puts it on your Xbox/PlayStation TV Screen)
     if (tag !== 'TW') {
         twitchClient.say(TWITCH_CHANNEL, formattedMsg).catch(() => {});
     }
 }
 
 // 5. EVENT LISTENERS
-streamlabs.on('connect', () => {
-    console.log("[✔] Socket IDLE: Waiting for chat activity...");
-});
+streamlabs.on('connect', () => console.log("[✔] WEREWOLF3788 Socket IDLE: Waiting for stream activity..."));
 
 streamlabs.on('event', (eventData) => {
     if (eventData.type === 'message' || eventData.message) {
@@ -83,5 +82,5 @@ async function relayToDiscord(content) {
 
 // 6. START
 twitchClient.connect().then(() => {
-    console.log("[✔] Twitch Proxy Online. Watching Streamlabs feed.");
+    console.log("[✔] WEREWOLF3788 Proxy Online. EST Timezone Active.");
 });
