@@ -2,17 +2,16 @@
 # SHARING REMINDER: You can share this file with Seth, TJ, Michael, or Ray!
 # They just need to:
 # 1. Fork your repo.
-# 2. Add their OWN 'TWITCH_CLIENT_ID' and 'TWITCH_ACCESS_TOKEN' in Secrets.
-# 3. Add their OWN 'DISCORD_WEBHOOK' if they want a private Discord.
+# 2. Add their OWN 'TWITCH_ACCESS_TOKEN' and 'STREAMLABS_TOKEN' in Secrets.
 # -------------------------------------------------------------------------
 name: Twitch Relay Service
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # Runs every 5 minutes to keep the connection alive
-  workflow_dispatch:      # Allows you to start it manually from your phone
+    - cron: '*/5 * * * *' 
+  workflow_dispatch:      
   push:
-    branches: [ main ]    # Restarts whenever you update your code
+    branches: [ main ]    
 
 jobs:
   run-relay:
@@ -27,11 +26,11 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: npm install
+        run: npm install tmi.js node-fetch@2 socket.io-client
 
       - name: Start Relay
         env:
-          WP_URL: "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay"
-          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
+          STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
+          # We don't need WP_URL anymore since we are going direct to Discord!
         run: node relay.js
