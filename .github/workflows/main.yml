@@ -1,6 +1,10 @@
-# NOTE: This file can be shared with friends! 
-# Just have them copy this into their own .github/workflows/ folder.
-# They will need to set up their own SECRETS in GitHub settings.
+# -------------------------------------------------------------------------
+# SHARING REMINDER: You can share this file with Seth, TJ, Michael, or Ray!
+# They just need to:
+# 1. Fork your repo.
+# 2. Add their OWN 'TWITCH_CLIENT_ID' and 'TWITCH_ACCESS_TOKEN' in Secrets.
+# 3. Add their OWN 'DISCORD_WEBHOOK' if they want a private Discord.
+# -------------------------------------------------------------------------
 name: Twitch Relay Service
 
 on:
