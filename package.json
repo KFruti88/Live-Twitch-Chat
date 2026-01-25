@@ -1,6 +1,7 @@
 {
   "name": "twitch-to-discord-relay",
   "version": "1.0.0",
+  "description": "Relays Twitch chat to WordPress/Discord using GitHub Actions",
   "main": "relay.js",
   "dependencies": {
     "tmi.js": "^1.8.5",
