@@ -9,8 +9,8 @@ const { LiveChat } = require('youtube-chat');
 const fetch = require('node-fetch');
 
 // 1. CONFIGURATION
-const TWITCH_CHANNEL = 'werewolf3788'; // Change for friends
-const YT_CHANNEL_ID = 'YOUR_YOUTUBE_CHANNEL_ID'; // Replace with your UC... ID
+const TWITCH_CHANNEL = 'werewolf3788'; 
+const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; // Your verified ID
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
 
 // 2. TWITCH CLIENT SETUP
@@ -24,7 +24,7 @@ const twitchClient = new tmi.Client({
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. RELAY FUNCTION (Pushes to WordPress/Discord)
+// 3. RELAY FUNCTION (To WordPress/Discord)
 async function relayMessage(username, message, platform) {
     console.log(`[*] ${platform} Message from ${username}: ${message}`);
 
@@ -49,17 +49,17 @@ async function relayMessage(username, message, platform) {
             console.log(`[${platform}] WordPress Error: ${response.statusText}`);
         }
     } catch (err) {
-        console.error(`[${platform}] Relay Network Error:`, err);
+        console.error(`[${platform}] Relay Error:`, err);
     }
 }
 
-// --- 4. TWITCH LISTENER ---
+// 4. TWITCH LISTENER
 twitchClient.on('message', (channel, tags, message, self) => {
-    if (self) return; // Ignore the bot's own messages
+    if (self) return; // Ignore bot's own messages
     relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-// --- 5. YOUTUBE LISTENER & SYNC TO TWITCH ---
+// 5. YOUTUBE LISTENER & SYNC TO TWITCH
 const ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
 
 ytChat.on("chat", (chatItem) => {
@@ -70,12 +70,11 @@ ytChat.on("chat", (chatItem) => {
     relayMessage(username, message, 'YouTube');
 
     // B. Sync YouTube Message into Twitch Chat
-    // This allows Twitch viewers to see what YouTube viewers are saying
     twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`)
         .catch(err => console.error("Twitch Sync Error:", err));
 });
 
-// --- 6. START THE HUB ---
+// 6. START THE HUB
 twitchClient.connect()
     .then(() => {
         console.log(`[✔] Twitch Connected as ${TWITCH_CHANNEL}`);
@@ -83,6 +82,7 @@ twitchClient.connect()
     })
     .then(() => {
         console.log(`[✔] YouTube Listener Started for ${YT_CHANNEL_ID}`);
+        console.log("[✔] Relay is Live!");
     })
     .catch(err => {
         console.error("Critical Startup Error:", err);
