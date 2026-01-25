@@ -1,14 +1,8 @@
-/* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
- * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
- * 3. This script auto-retries every 30s until you go live on PlayStation.
- */
-
 const tmi = require('tmi.js');
 const { LiveChat } = require('youtube-chat');
 const fetch = require('node-fetch');
 
-// 1. CONFIGURATION
+// 1. CONFIG
 const TWITCH_CHANNEL = 'werewolf3788'; 
 const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; 
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
@@ -19,67 +13,66 @@ const twitchClient = new tmi.Client({
     connection: { secure: true, reconnect: true },
     identity: {
         username: TWITCH_CHANNEL,
-        password: process.env.TWITCH_ACCESS_TOKEN.startsWith('oauth:') ? 
-                  process.env.TWITCH_ACCESS_TOKEN : `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
+        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
     },
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. YOUTUBE SETUP (With Browser Headers to prevent blocking)
-const ytChat = new LiveChat({ 
-    channelId: YT_CHANNEL_ID,
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-});
+// 3. THE "SILENT WATCH" ENGINE
+let ytChat;
+let isYtConnected = false;
 
-// 4. THE AUTO-START LOGIC
-async function startYouTubeRelay() {
+async function monitorYouTube() {
+    if (isYtConnected) return; // Don't try to connect if we already are
+
+    console.log(`[🔍] Monitoring ${YT_CHANNEL_ID}... (Waiting for PlayStation to go Live)`);
+    
     try {
-        console.log(`[🔍] Bot is looking for your stream on ${YT_CHANNEL_ID}...`);
-        const ok = await ytChat.start();
-        if (ok) {
-            console.log("[✔] Connected! YouTube messages will now appear on your PlayStation TV.");
+        ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
+        
+        // This is the trick: we "start" it inside a controlled block
+        const connected = await ytChat.start();
+        
+        if (connected) {
+            isYtConnected = true;
+            console.log("[✔] YouTube Stream Found! Messages are now syncing to your TV.");
+            
+            ytChat.on("chat", (chatItem) => {
+                const username = chatItem.author.name;
+                const message = chatItem.message[0].text;
+                const combinedMsg = `[YT] ${username}: ${message}`;
+
+                // Send to Twitch so it shows on your TV
+                twitchClient.say(TWITCH_CHANNEL, combinedMsg).catch(() => {});
+                
+                // Send to Discord
+                relayToBridge(username, message, 'YouTube');
+            });
+
+            ytChat.on("error", () => {
+                console.log("[!] Stream ended or lost. Returning to Silent Watch...");
+                isYtConnected = false;
+                monitorYouTube();
+            });
         }
     } catch (err) {
-        // Keeps trying until you hit 'Go Live' in Lightstream/YouTube
-        console.log("[!] YouTube hasn't detected your stream yet. Retrying in 30s...");
-        setTimeout(startYouTubeRelay, 30000); 
+        // Instead of a "Fatal Error", we just log a quiet retry
+        setTimeout(monitorYouTube, 60000); // Check once every minute
     }
 }
 
-// 5. THE MAGIC: YouTube -> Twitch Overlay on TV
-ytChat.on("chat", (chatItem) => {
-    const username = chatItem.author.name;
-    const message = chatItem.message[0].text;
-    const combinedMsg = `[YT] ${username}: ${message}`;
-
-    console.log(`[LISTEN] YouTube heard: ${username}: ${message}`);
-
-    // This puts the message on your TV via Twitch chat overlay/TTS
-    twitchClient.say(TWITCH_CHANNEL, combinedMsg).catch(e => console.error("Twitch Sync Error:", e.message));
-
-    // Also send to Discord/WordPress Bridge
-    relayToBridge(username, message, 'YouTube');
-});
-
-// Relay function for Discord
 async function relayToBridge(username, message, platform) {
     try {
         await fetch(WP_URL, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID,
-                'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN 
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, message, platform })
         });
-    } catch (e) { /* Silent fail to keep bot running */ }
+    } catch (e) {}
 }
 
-// 6. START
+// 4. BOOT UP
 twitchClient.connect().then(() => {
-    console.log("[✔] Twitch Connected successfully.");
-    startYouTubeRelay();
-}).catch(err => console.error("Twitch Login Failed. Check your Token in GitHub Secrets!", err));
+    console.log("[✔] Twitch Connected. Bot is now in 'Silent Watch' mode.");
+    monitorYouTube();
+});
