@@ -2,10 +2,10 @@
 /**
  * WEREWOLF STREAM HUB (werewolf.ourflora.com)
  * Handles Chat Relay, Auto-Live Detection, and Discord Notifications.
- * Database logging removed for a cleaner setup.
  */
 
-// --- 1. THE RELAY ENDPOINT ---
+// --- SECTION 1: THE RELAY ENDPOINT ---
+// This creates the "Bridge" that GitHub talks to.
 add_action( 'rest_api_init', function () {
     register_rest_route( 'stream-bridge/v1', '/relay', array(
         'methods'             => 'POST',
@@ -20,7 +20,7 @@ function werewolf_process_relay( $request ) {
     $msg      = sanitize_textarea_field($params['message']);
     $platform = sanitize_text_field($params['platform']);
     
-    // 1. ALWAYS SEND TO DISCORD (Works 24/7)
+    // 1. ALWAYS SEND TO YOUR DISCORD (Works 24/7)
     $discord_webhook = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
     wp_remote_post( $discord_webhook, array(
         'headers' => array('Content-Type' => 'application/json'),
@@ -28,18 +28,25 @@ function werewolf_process_relay( $request ) {
     ));
 
     // 2. SEND TO TWITCH (ONLY if you are live)
-    if ( get_option('my_stream_status') === 'yes' ) {
+    $is_live = get_option('my_stream_status', 'no'); 
+
+    if ( $is_live === 'yes' ) {
+        // !!! REPLACE THESE WITH YOUR REAL STRINGS !!!
+        $twitch_client_id = 'YOUR_TWITCH_CLIENT_ID'; 
+        $twitch_token     = 'YOUR_TWITCH_ACCESS_TOKEN'; 
+        $broadcaster_id   = '896952944'; 
+        
         wp_remote_post( 'https://api.twitch.tv/helix/chat/messages', array(
             'headers' => array(
-                'Authorization' => 'Bearer YOUR_TWITCH_ACCESS_TOKEN', // PASTE HERE
-                'Client-Id'     => 'YOUR_TWITCH_CLIENT_ID',     // PASTE HERE
+                'Authorization' => 'Bearer ' . $twitch_token,
+                'Client-Id'     => $twitch_client_id,
                 'Content-Type'  => 'application/json'
             ),
             'body' => json_encode(array(
-                "broadcaster_id"  => '896952944',
-                "sender_id"       => '896952944',
+                "broadcaster_id"  => $broadcaster_id,
+                "sender_id"       => $broadcaster_id,
                 "message"         => "[$platform] $user: $msg",
-                "for_source_only" => false // Enabled for Shared Chat
+                "for_source_only" => false // Shared Chat support
             ))
         ));
     }
@@ -47,10 +54,12 @@ function werewolf_process_relay( $request ) {
     return new WP_REST_Response(array('status' => 'success'), 200);
 }
 
-// --- 2. AUTO-CHECK TWITCH LIVE STATUS ---
+// --- SECTION 2: AUTO-CHECK TWITCH LIVE STATUS ---
+// This function checks Twitch every 5 minutes to see if you're streaming.
 function werewolf_auto_check_twitch_status() {
-    $client_id = 'YOUR_TWITCH_CLIENT_ID';      // PASTE HERE
-    $token     = 'YOUR_TWITCH_ACCESS_TOKEN'; // PASTE HERE
+    // !!! REPLACE THESE WITH YOUR REAL STRINGS !!!
+    $client_id = 'YOUR_TWITCH_CLIENT_ID';
+    $token     = 'YOUR_TWITCH_ACCESS_TOKEN'; 
     $user_id   = '896952944';
 
     $response = wp_remote_get( "https://api.twitch.tv/helix/streams?user_id=$user_id", array(
@@ -68,7 +77,7 @@ function werewolf_auto_check_twitch_status() {
         if ($old_status !== $new_status) {
             update_option( 'my_stream_status', $new_status );
             
-            // Notify Discord of status change
+            // Notify Discord when your status flips
             $alert = ($new_status === 'yes') ? "🔴 LIVE detected! Twitch relay active." : "⚪ OFFLINE detected. Relay paused.";
             wp_remote_post("https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY", array(
                 'headers' => array('Content-Type' => 'application/json'),
@@ -78,10 +87,11 @@ function werewolf_auto_check_twitch_status() {
     }
 }
 
-// --- 3. THE SCHEDULER (WP-CRON) ---
+// --- SECTION 3: THE SCHEDULER (WP-CRON) ---
+// This tells WordPress to run the check automatically.
 add_filter( 'cron_schedules', function ( $schedules ) {
     $schedules['every_five_minutes'] = array(
-        'interval' => 300, 
+        'interval' => 300,
         'display'  => esc_html__( 'Every Five Minutes' ),
     );
     return $schedules;
