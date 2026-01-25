@@ -1,7 +1,6 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
  * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
- * 3. Ensure your 'TWITCH_ACCESS_TOKEN' in GitHub Secrets has 'chat:edit' permissions.
+ * 2. This bot acts as a Central Dispatcher to prevent loops.
  */
 
 const tmi = require('tmi.js');
@@ -11,10 +10,11 @@ const fetch = require('node-fetch');
 // 1. CONFIGURATION
 const TWITCH_CHANNEL = 'werewolf3788'; 
 const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; 
+const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY';
 
 // 2. TWITCH SETUP
 const twitchClient = new tmi.Client({
-    options: { debug: true },
+    options: { debug: false },
     connection: { secure: true, reconnect: true },
     identity: {
         username: TWITCH_CHANNEL,
@@ -23,86 +23,77 @@ const twitchClient = new tmi.Client({
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. THE "SILENT WATCH" ENGINE
+// 3. CENTRAL DISPATCHER (The Loop-Killer)
+async function broadcast(username, message, sourcePlatform) {
+    // A. STOP THE LOOP: If it's already a relay message, exit now.
+    if (message.startsWith('[YT]') || message.startsWith('[TW]') || message.startsWith('[TR]')) {
+        return; 
+    }
+
+    const relayMessage = `[${sourcePlatform}] ${username}: ${message}`;
+    console.log(`[DISPATCH] From ${sourcePlatform}: ${username}`);
+
+    // B. SEND TO TWITCH (Shows on your TV Overlay)
+    if (sourcePlatform !== 'TW') {
+        twitchClient.say(TWITCH_CHANNEL, relayMessage).catch(() => {});
+    }
+
+    // C. SEND TO DISCORD
+    relayToDiscord(relayMessage);
+
+    // NOTE: Posting TO YouTube or Trovo requires extra API Keys (Google/Trovo Dev)
+}
+
+// 4. THE "LIGHTSTREAM" TRIGGER (Silent Watch)
 let ytChat;
-let isYtConnected = false;
+let isLive = false;
 
-async function monitorYouTube() {
-    if (isYtConnected) return; 
+async function monitorLiveStatus() {
+    if (isLive) return;
 
-    console.log(`[🔍] Monitoring ${YT_CHANNEL_ID}... (Waiting for PlayStation to go Live)`);
+    console.log(`[🔍] Watching Lightstream feed via YouTube (${YT_CHANNEL_ID})...`);
     
     try {
-        ytChat = new LiveChat({ 
-            channelId: YT_CHANNEL_ID,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-        
+        ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
         const connected = await ytChat.start();
         
         if (connected) {
-            isYtConnected = true;
-            console.log("[✔] YouTube Stream Found! Messages are now syncing to your TV.");
+            isLive = true;
+            console.log("[✔] Lightstream detected! Syncing all platforms.");
             
             ytChat.on("chat", (chatItem) => {
-                const username = chatItem.author.name;
-                const message = chatItem.message[0].text;
-                const combinedMsg = `[YT] ${username}: ${message}`;
-
-                console.log(`[LISTEN] ${username}: ${message}`);
-
-                // Send to Twitch (Shows on your PlayStation TV screen)
-                twitchClient.say(TWITCH_CHANNEL, combinedMsg).catch(() => {});
-                
-                // Send directly to Discord
-                relayToDiscord(username, message, 'YouTube');
+                broadcast(chatItem.author.name, chatItem.message[0].text, 'YT');
             });
 
             ytChat.on("error", () => {
-                console.log("[!] Stream ended or lost. Returning to Silent Watch...");
-                isYtConnected = false;
-                monitorYouTube();
+                isLive = false;
+                monitorLiveStatus();
             });
         }
     } catch (err) {
-        // Quietly retry once a minute if not live
-        setTimeout(monitorYouTube, 60000); 
+        setTimeout(monitorLiveStatus, 60000); // Check every minute
     }
 }
 
-// 4. DIRECT DISCORD RELAY (Bypasses WordPress to fix the 404)
-async function relayToDiscord(username, message, platform) {
-    const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY';
-    
-    try {
-        const response = await fetch(DISCORD_WEBHOOK, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                content: `**[${platform}] ${username}**: ${message}`
-            })
-        });
-
-        if (response.ok) {
-            console.log(`[✔] Direct Discord Relay Success: ${username}`);
-        } else {
-            console.log(`[!] Discord Webhook Error: ${response.status}`);
-        }
-    } catch (e) {
-        console.error("Direct Discord Error:", e.message);
-    }
-}
-
-// 5. TWITCH LISTENER (Relays Twitch chat to Discord as well)
+// 5. LISTENERS
 twitchClient.on('message', (channel, tags, message, self) => {
     if (self) return;
-    relayToDiscord(tags['display-name'], message, 'Twitch');
+    broadcast(tags['display-name'], message, 'TW');
 });
 
-// 6. BOOT UP
+// 6. HELPERS
+async function relayToDiscord(content) {
+    try {
+        await fetch(DISCORD_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: `**${content}**` })
+        });
+    } catch (e) {}
+}
+
+// 7. START
 twitchClient.connect().then(() => {
-    console.log("[✔] Twitch Connected. Bot is now in 'Silent Watch' mode.");
-    monitorYouTube();
-}).catch(err => console.error("Twitch Login Failed! Update your Secret Token.", err));
+    console.log("[✔] Dispatcher Online.");
+    monitorLiveStatus();
+});
