@@ -1,21 +1,28 @@
-name: Stream Chat Relay
+name: Twitch Relay Service
+
 on:
   schedule:
-    - cron: '*/5 * * * *' # Runs every 5 minutes
-  workflow_dispatch:      # Allows you to start it manually from the GitHub Mobile App
+    - cron: '*/5 * * * *' # Runs every 5 minutes to keep the connection alive
+  workflow_dispatch:      # Allows you to start it manually from your phone
+  push:
+    branches: [ main ]    # Restarts whenever you update your code
 
 jobs:
-  relay:
+  run-relay:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Run Relay Script
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Start Relay
         env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          WP_URL: "https://your-wordpress-site.com/wp-json/stream-bridge/v1/relay"
-        run: |
-          # This is where your Node.js or Python scraper would run
-          # It fetches chat and sends a POST request to your WordPress site
-          node relay-script.js
+          WP_URL: "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay"
+        run: node relay.js
