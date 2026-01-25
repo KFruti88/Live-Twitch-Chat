@@ -1,0 +1,9 @@
+{
+  "name": "twitch-to-discord-relay",
+  "version": "1.0.0",
+  "main": "relay.js",
+  "dependencies": {
+    "tmi.js": "^1.8.5",
+    "node-fetch": "^2.6.7"
+  }
+}
