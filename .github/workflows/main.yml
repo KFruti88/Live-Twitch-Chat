@@ -25,4 +25,6 @@ jobs:
       - name: Start Relay
         env:
           WP_URL: "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay"
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
         run: node relay.js
