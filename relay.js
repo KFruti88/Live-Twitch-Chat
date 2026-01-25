@@ -46,53 +46,58 @@ async function relayMessage(username, message, platform) {
         if (response.ok) {
             console.log(`[${platform}] Successfully relayed to WordPress/Discord`);
         } else {
-            console.log(`[${platform}] WordPress Error: ${response.statusText}`);
+            console.log(`[${platform}] WordPress Error: ${response.statusText} (${response.status})`);
         }
     } catch (err) {
-        console.error(`[${platform}] Relay Error:`, err);
+        console.error(`[${platform}] Relay Network Error:`, err);
     }
 }
 
 // 4. TWITCH LISTENER
 twitchClient.on('message', (channel, tags, message, self) => {
-    if (self) return; // Ignore bot's own messages
+    if (self) return; 
     relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-// 5. YOUTUBE LISTENER & SYNC TO TWITCH
-const ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
+// 5. YOUTUBE LISTENER (With User-Agent fix)
+const ytChat = new LiveChat({ 
+    channelId: YT_CHANNEL_ID,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+});
 
 ytChat.on("chat", (chatItem) => {
     const username = chatItem.author.name;
     const message = chatItem.message[0].text;
+
+    console.log(`[LISTEN] YouTube heard: "${message}" from ${username}`);
 
     // A. Relay to WordPress (Discord)
     relayMessage(username, message, 'YouTube');
 
     // B. Sync YouTube Message into Twitch Chat
     twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`)
-        .catch(err => console.error("Twitch Sync Error:", err));
+        .then(() => console.log("[SYNC] YouTube message sent to Twitch chat"))
+        .catch(err => console.error("[SYNC] Twitch Sync Error:", err.message));
 });
 
-// 6. START THE HUB
+// 6. START THE HUB (With Startup Delay)
 twitchClient.connect()
     .then(() => {
         console.log(`[✔] Twitch Connected as ${TWITCH_CHANNEL}`);
-        return ytChat.start();
-    })
-    .then(() => {
-        console.log(`[✔] YouTube Listener Started for ${YT_CHANNEL_ID}`);
-        console.log("[✔] Relay is Live!");
+        console.log("[WAIT] Letting Twitch settle for 3 seconds...");
+        
+        // Delay starting YouTube to prevent sync errors
+        setTimeout(() => {
+            ytChat.start()
+                .then(() => {
+                    console.log(`[✔] YouTube Listener Started for ${YT_CHANNEL_ID}`);
+                    console.log("[✔] Relay is Live and Listening!");
+                })
+                .catch(err => console.error("YouTube Start Error:", err));
+        }, 3000);
     })
     .catch(err => {
         console.error("Critical Startup Error:", err);
     });
-
-// --- TROVO SECTION (PAUSED FOR 2-WEEK REVIEW) ---
-/* const Trovo = require('trovo.js');
-const trovo = new Trovo.Client({ clientId: 'YOUR_TROVO_CLIENT_ID' });
-trovo.chat.connect();
-trovo.chat.on('message', message => {
-    relayMessage(message.author.name, message.content, 'Trovo');
-});
-*/
