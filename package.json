@@ -3,15 +3,10 @@
   "version": "1.1.0",
   "description": "Multi-platform stream relay for Twitch, YouTube, and Trovo",
   "main": "relay.js",
-  "scripts": {
-    "start": "node relay.js"
-  },
   "dependencies": {
     "tmi.js": "^1.8.5",
     "node-fetch": "^2.6.7",
-    "youtube-chat": "^1.4.0",
+    "youtube-chat": "^2.2.0",
     "trovo.js": "^1.2.0"
-  },
-  "author": "KFruti88",
-  "license": "MIT"
+  }
 }
