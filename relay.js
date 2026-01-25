@@ -1,7 +1,7 @@
-/* * SHARING NOTE: 
- * To share this with friends (Seth, TJ, Michael, Ray):
- * 1. Give them a copy of this file and the package.json.
- * 2. Tell them to change the 'TWITCH_CHANNEL' below to their own.
+/* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
+ * 1. Change the 'TWITCH_CHANNEL' below to your channel name.
+ * 2. Change 'YOUR_YOUTUBE_CHANNEL_ID' to your UC... ID.
+ * 3. This code will automatically use the Discord Webhook you put in GitHub Secrets!
  */
 const tmi = require('tmi.js');
 const fetch = require('node-fetch');
