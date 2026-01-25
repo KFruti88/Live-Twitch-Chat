@@ -1,0 +1,21 @@
+name: Stream Chat Relay
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Runs every 5 minutes
+  workflow_dispatch:      # Allows you to start it manually from the GitHub Mobile App
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Run Relay Script
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          WP_URL: "https://your-wordpress-site.com/wp-json/stream-bridge/v1/relay"
+        run: |
+          # This is where your Node.js or Python scraper would run
+          # It fetches chat and sends a POST request to your WordPress site
+          node relay-script.js
