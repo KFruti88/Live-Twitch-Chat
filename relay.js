@@ -1,19 +1,18 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
- * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. Get your Socket API Token: https://streamlabs.com/dashboard#/settings/api-settings -> API Tokens
- * 3. Add 'STREAMLABS_TOKEN' and 'TWITCH_ACCESS_TOKEN' to your GitHub Secrets.
- * 4. This version handles all platforms (YT, TW, TR) through one Streamlabs pipe.
+ * 1. This is the IDLE version—it stays connected and waits for you to go live.
+ * 2. It syncs all platforms to your Twitch chat for on-screen TV viewing.
+ * 3. Timezone set to America/New_York (Gainesville).
  */
 
 const io = require('socket.io-client');
 const tmi = require('tmi.js');
 const fetch = require('node-fetch');
 
-// 1. CONFIGURATION
+// 1. CONFIG
 const TWITCH_CHANNEL = 'werewolf3788'; 
 const DISCORD_WEBHOOK = 'https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY';
 
-// 2. TWITCH SETUP (To post messages to your TV screen)
+// 2. TWITCH SETUP
 const twitchClient = new tmi.Client({
     options: { debug: false },
     connection: { secure: true, reconnect: true },
@@ -24,45 +23,54 @@ const twitchClient = new tmi.Client({
     channels: [TWITCH_CHANNEL]
 });
 
-// 3. STREAMLABS SOCKET SETUP (The "Universal Pipe")
+// 3. STREAMLABS SOCKET (The Idle Connection)
 const streamlabs = io(`https://sockets.streamlabs.com?token=${process.env.STREAMLABS_TOKEN}`, {
     transports: ['websocket']
 });
 
-// 4. THE SYNC LOGIC
+// 4. THE DISPATCHER
+async function broadcast(username, message, rawPlatform) {
+    // Prevent Echo/Loop: Ignore messages already tagged by the bot
+    if (message.startsWith('[YT]') || message.startsWith('[TW]') || message.startsWith('[TR]') || message.startsWith('[FB]')) return;
+
+    // Gainesville/NY Timestamp
+    const time = new Date().toLocaleTimeString("en-US", {
+        timeZone: "America/New_York",
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    let tag = '??';
+    if (rawPlatform.includes('youtube')) tag = 'YT';
+    if (rawPlatform.includes('twitch')) tag = 'TW';
+    if (rawPlatform.includes('trovo')) tag = 'TR';
+    if (rawPlatform.includes('facebook')) tag = 'FB';
+
+    const formattedMsg = `[${time}] [${tag}] ${username}: ${message}`;
+    console.log(`[IDLE LOG] ${formattedMsg}`);
+
+    // A. Send to Discord
+    relayToDiscord(formattedMsg);
+
+    // B. Send to Twitch (Injects into your TV overlay/TTS)
+    if (tag !== 'TW') {
+        twitchClient.say(TWITCH_CHANNEL, formattedMsg).catch(() => {});
+    }
+}
+
+// 5. EVENT LISTENERS
 streamlabs.on('connect', () => {
-    console.log("[✔] Connected to Streamlabs Universal Feed!");
+    console.log("[✔] Socket IDLE: Waiting for chat activity...");
 });
 
 streamlabs.on('event', (eventData) => {
-    // Only process chat messages
-    if (eventData.type === 'message') {
-        const msgData = eventData.message[0];
-        const platform = eventData.for || 'stream'; // e.g. 'youtube_account', 'twitch_account'
-        const username = msgData.from;
-        const text = msgData.text;
-
-        // LOOP PREVENTION: Ignore messages that are already relays
-        if (text.startsWith('[YT]') || text.startsWith('[TW]') || text.startsWith('[TR]')) return;
-
-        // Format the tag (e.g., [YOUTUBE] or [TWITCH])
-        const tag = platform.split('_')[0].toUpperCase().substring(0, 2); 
-        const formattedMsg = `[${tag}] ${username}: ${text}`;
-
-        console.log(`[RELAY] ${formattedMsg}`);
-
-        // A. Post to Discord
-        relayToDiscord(formattedMsg);
-
-        // B. Post to Twitch (So it shows on your TV)
-        // We only send it if it didn't ORIGINATE on Twitch to prevent double-display
-        if (tag !== 'TW') {
-            twitchClient.say(TWITCH_CHANNEL, formattedMsg).catch(() => {});
-        }
+    if (eventData.type === 'message' || eventData.message) {
+        const msg = eventData.message[0];
+        if (!msg || !msg.text) return;
+        broadcast(msg.from, msg.text, eventData.for || 'stream');
     }
 });
 
-// 5. HELPERS
 async function relayToDiscord(content) {
     try {
         await fetch(DISCORD_WEBHOOK, {
@@ -70,10 +78,10 @@ async function relayToDiscord(content) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: `**${content}**` })
         });
-    } catch (e) { console.error("Discord Fail"); }
+    } catch (e) {}
 }
 
 // 6. START
 twitchClient.connect().then(() => {
-    console.log("[✔] Twitch Proxy Online.");
-}).catch(err => console.error("Twitch Connection Error:", err));
+    console.log("[✔] Twitch Proxy Online. Watching Streamlabs feed.");
+});
