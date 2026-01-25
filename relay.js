@@ -1,6 +1,6 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
  * 1. Change 'TWITCH_CHANNEL' to your handle.
- * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
+ * 2. Change 'liveId' to the 11 characters at the end of your YouTube URL.
  * 3. Ensure your 'TWITCH_ACCESS_TOKEN' in GitHub Secrets has 'chat:edit' permissions.
  */
 
@@ -10,7 +10,6 @@ const fetch = require('node-fetch');
 
 // 1. CONFIGURATION
 const TWITCH_CHANNEL = 'werewolf3788'; 
-const YT_CHANNEL_ID = 'UCYrxPkCw_Q2Fw02VFfumfyQ'; // Your verified ID
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
 
 // 2. TWITCH CLIENT SETUP
@@ -49,7 +48,7 @@ async function relayMessage(username, message, platform) {
             console.log(`[${platform}] WordPress Error: ${response.statusText} (${response.status})`);
         }
     } catch (err) {
-        console.error(`[${platform}] Relay Network Error:`, err);
+        console.error(`[${platform}] Relay Error:`, err);
     }
 }
 
@@ -59,9 +58,9 @@ twitchClient.on('message', (channel, tags, message, self) => {
     relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-// 5. YOUTUBE LISTENER (With User-Agent fix)
+// 5. YOUTUBE LISTENER (Hardwired to current Live ID)
 const ytChat = new LiveChat({ 
-    channelId: YT_CHANNEL_ID,
+    liveId: 'qWx5aMGAw-w', // This points directly to your current stream
     headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
@@ -82,17 +81,16 @@ ytChat.on("chat", (chatItem) => {
         .catch(err => console.error("[SYNC] Twitch Sync Error:", err.message));
 });
 
-// 6. START THE HUB (With Startup Delay)
+// 6. START THE HUB
 twitchClient.connect()
     .then(() => {
         console.log(`[✔] Twitch Connected as ${TWITCH_CHANNEL}`);
         console.log("[WAIT] Letting Twitch settle for 3 seconds...");
         
-        // Delay starting YouTube to prevent sync errors
         setTimeout(() => {
             ytChat.start()
                 .then(() => {
-                    console.log(`[✔] YouTube Listener Started for ${YT_CHANNEL_ID}`);
+                    console.log(`[✔] YouTube Listener Started for qWx5aMGAw-w`);
                     console.log("[✔] Relay is Live and Listening!");
                 })
                 .catch(err => console.error("YouTube Start Error:", err));
