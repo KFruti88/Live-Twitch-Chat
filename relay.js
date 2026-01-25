@@ -1,74 +1,98 @@
 /* * SHARING NOTE FOR FRIENDS (Phoenix_Darkfire, MjolnirGaming, Raymystyro):
- * 1. Change the 'TWITCH_CHANNEL' below to your channel name.
- * 2. Change 'YOUR_YOUTUBE_CHANNEL_ID' to your UC... ID.
- * 3. This code will automatically use the Discord Webhook you put in GitHub Secrets!
+ * 1. Change 'TWITCH_CHANNEL' to your handle.
+ * 2. Change 'YT_CHANNEL_ID' to your UC... ID.
+ * 3. Ensure your 'TWITCH_ACCESS_TOKEN' in GitHub Secrets has 'chat:edit' permissions.
  */
-// --- 3. TROVO LISTENER (WAITING FOR APPROVAL) ---
-/* const trovo = new Trovo.Client({
-    clientId: 'YOUR_TROVO_CLIENT_ID' 
-});
-trovo.chat.connect();
-... 
-*/
+
 const tmi = require('tmi.js');
+const { LiveChat } = require('youtube-chat');
 const fetch = require('node-fetch');
-const { YoutubeChat } = require('youtube-chat');
-const Trovo = require('trovo.js');
 
 // 1. CONFIGURATION
+const TWITCH_CHANNEL = 'werewolf3788'; // Change for friends
+const YT_CHANNEL_ID = 'YOUR_YOUTUBE_CHANNEL_ID'; // Replace with your UC... ID
 const WP_URL = "https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay";
 
-// --- 2. TWITCH LISTENER ---
+// 2. TWITCH CLIENT SETUP
 const twitchClient = new tmi.Client({
+    options: { debug: true },
     connection: { secure: true, reconnect: true },
-    channels: ['werewolf3788']
+    identity: {
+        username: TWITCH_CHANNEL,
+        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
+    },
+    channels: [TWITCH_CHANNEL]
 });
-twitchClient.connect().catch(console.error);
 
+// 3. RELAY FUNCTION (Pushes to WordPress/Discord)
+async function relayMessage(username, message, platform) {
+    console.log(`[*] ${platform} Message from ${username}: ${message}`);
+
+    try {
+        const response = await fetch(WP_URL, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID,
+                'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN 
+            },
+            body: JSON.stringify({
+                username: username,
+                message: message,
+                platform: platform
+            })
+        });
+
+        if (response.ok) {
+            console.log(`[${platform}] Successfully relayed to WordPress/Discord`);
+        } else {
+            console.log(`[${platform}] WordPress Error: ${response.statusText}`);
+        }
+    } catch (err) {
+        console.error(`[${platform}] Relay Network Error:`, err);
+    }
+}
+
+// --- 4. TWITCH LISTENER ---
 twitchClient.on('message', (channel, tags, message, self) => {
-    if (self) return;
+    if (self) return; // Ignore the bot's own messages
     relayMessage(tags['display-name'], message, 'Twitch');
 });
 
-// --- 3. YOUTUBE LISTENER ---
-// Replace with your actual UC... Channel ID
-const ytChat = new YoutubeChat('YOUR_YOUTUBE_CHANNEL_ID'); 
-ytChat.on('message', msg => {
-    relayMessage(msg.author.name, msg.text, 'YouTube');
-});
-ytChat.connect().catch(err => console.error("YouTube Connect Error:", err));
+// --- 5. YOUTUBE LISTENER & SYNC TO TWITCH ---
+const ytChat = new LiveChat({ channelId: YT_CHANNEL_ID });
 
-// --- 4. TROVO LISTENER ---
-// Requires a Trovo Client ID from developer.trovo.live
-const trovo = new Trovo.Client({
-    clientId: 'YOUR_TROVO_CLIENT_ID' 
+ytChat.on("chat", (chatItem) => {
+    const username = chatItem.author.name;
+    const message = chatItem.message[0].text;
+
+    // A. Relay to WordPress (Discord)
+    relayMessage(username, message, 'YouTube');
+
+    // B. Sync YouTube Message into Twitch Chat
+    // This allows Twitch viewers to see what YouTube viewers are saying
+    twitchClient.say(TWITCH_CHANNEL, `[YT] ${username}: ${message}`)
+        .catch(err => console.error("Twitch Sync Error:", err));
 });
+
+// --- 6. START THE HUB ---
+twitchClient.connect()
+    .then(() => {
+        console.log(`[✔] Twitch Connected as ${TWITCH_CHANNEL}`);
+        return ytChat.start();
+    })
+    .then(() => {
+        console.log(`[✔] YouTube Listener Started for ${YT_CHANNEL_ID}`);
+    })
+    .catch(err => {
+        console.error("Critical Startup Error:", err);
+    });
+
+// --- TROVO SECTION (PAUSED FOR 2-WEEK REVIEW) ---
+/* const Trovo = require('trovo.js');
+const trovo = new Trovo.Client({ clientId: 'YOUR_TROVO_CLIENT_ID' });
 trovo.chat.connect();
 trovo.chat.on('message', message => {
     relayMessage(message.author.name, message.content, 'Trovo');
 });
-
-// --- 5. THE SHARED RELAY FUNCTION ---
-// This pushes all messages to your WordPress bridge using GitHub Secrets
-function relayMessage(username, message, platform) {
-    console.log(`[*] ${platform} Message from ${username}: ${message}`);
-
-    fetch(WP_URL, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'X-Twitch-Client-ID': process.env.TWITCH_CLIENT_ID,
-            'X-Twitch-Token': process.env.TWITCH_ACCESS_TOKEN 
-        },
-        body: JSON.stringify({
-            username: username,
-            message: message,
-            platform: platform
-        })
-    })
-    .then(res => {
-        if (res.ok) console.log(`[${platform}] Successfully relayed to WordPress`);
-        else console.log(`[${platform}] WordPress returned an error.`);
-    })
-    .catch(err => console.error(`[${platform}] Relay Network Error:`, err));
-}
+*/
