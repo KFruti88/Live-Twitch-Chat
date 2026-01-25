@@ -1,15 +1,15 @@
 <?php
 /**
- * Stream Chat Bridge for werewolf.ourflora.com
- * Receives messages from GitHub Actions and pushes to Discord and Twitch Shared Chat.
- * Endpoint: https://werewolf.ourflora.com/wp-json/stream-bridge/v1/relay
+ * WEREWOLF STREAM HUB (werewolf.ourflora.com)
+ * Includes: Chat Relay, Auto-Live Detection, and Cron Scheduling.
  */
 
+// --- SECTION 1: THE CHAT RELAY ENDPOINT ---
 add_action( 'rest_api_init', function () {
     register_rest_route( 'stream-bridge/v1', '/relay', array(
         'methods'             => 'POST',
         'callback'            => 'werewolf_process_relay',
-        'permission_callback' => '__return_true', // You can add an API Key check here later for security
+        'permission_callback' => '__return_true', 
     ));
 });
 
@@ -19,25 +19,21 @@ function werewolf_process_relay( $request ) {
     $msg      = sanitize_textarea_field($params['message']);
     $platform = sanitize_text_field($params['platform']);
     
-    // --- 1. ALWAYS SEND TO YOUR DISCORD ---
+    // Send to Discord (Always)
     $discord_webhook = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
-    
     wp_remote_post( $discord_webhook, array(
         'headers' => array('Content-Type' => 'application/json'),
-        'body'    => json_encode(array(
-            "content" => "**[$platform] $user:** $msg"
-        ))
+        'body'    => json_encode(array("content" => "**[$platform] $user:** $msg"))
     ));
 
-    // --- 2. CHECK IF LIVE & PUSH TO TWITCH ---
-    // Note: Set 'my_stream_status' to 'yes' in your WP options when you start your stream.
+    // Send to Twitch (Only if Live)
     $is_live = get_option('my_stream_status', 'no'); 
 
     if ( $is_live === 'yes' ) {
-        // REPLACE THESE with the actual strings you saved from Twitch/Token Generator
+        // Use the credentials you saved
         $twitch_client_id = 'YOUR_TWITCH_CLIENT_ID'; 
         $twitch_token     = 'YOUR_TWITCH_ACCESS_TOKEN'; 
-        $broadcaster_id   = '896952944'; // Your verified Twitch ID from screenshot
+        $broadcaster_id   = '896952944'; 
         
         wp_remote_post( 'https://api.twitch.tv/helix/chat/messages', array(
             'headers' => array(
@@ -49,12 +45,11 @@ function werewolf_process_relay( $request ) {
                 "broadcaster_id"  => $broadcaster_id,
                 "sender_id"       => $broadcaster_id,
                 "message"         => "[$platform] $user: $msg",
-                "for_source_only" => false // This ensures it works with Twitch's Shared Chat
+                "for_source_only" => false // Enabled for Shared Chat
             ))
         ));
     } else {
-        // --- 3. LOG OFFLINE MESSAGES TO DATABASE ---
-        // This saves messages so you can check them on your site later.
+        // Offline Log
         global $wpdb;
         $wpdb->insert('wp_offline_messages', array(
             'platform' => $platform,
@@ -63,6 +58,50 @@ function werewolf_process_relay( $request ) {
             'time'     => current_time('mysql')
         ));
     }
-    
     return new WP_REST_Response(array('status' => 'success'), 200);
 }
+
+// --- SECTION 2: AUTO-CHECK TWITCH LIVE STATUS ---
+function werewolf_auto_check_twitch_status() {
+    $client_id = 'YOUR_TWITCH_CLIENT_ID';
+    $token     = 'YOUR_TWITCH_ACCESS_TOKEN'; 
+    $user_id   = '896952944';
+
+    $response = wp_remote_get( "https://api.twitch.tv/helix/streams?user_id=$user_id", array(
+        'headers' => array(
+            'Client-ID'     => $client_id,
+            'Authorization' => 'Bearer ' . $token,
+        )
+    ));
+
+    if ( ! is_wp_error( $response ) && wp_remote_retrieve_response_code( $response ) === 200 ) {
+        $data = json_decode( wp_remote_retrieve_body( $response ), true );
+        $old_status = get_option('my_stream_status', 'no');
+        $new_status = ! empty( $data['data'] ) ? 'yes' : 'no';
+
+        if ($old_status !== $new_status) {
+            update_option( 'my_stream_status', $new_status );
+            
+            // Notify Discord of status change
+            $status_msg = ($new_status === 'yes') ? "🔴 LIVE detected! Twitch relay active." : "⚪ OFFLINE detected. Relay paused.";
+            wp_remote_post("https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY", array(
+                'headers' => array('Content-Type' => 'application/json'),
+                'body'    => json_encode(array("content" => "**System Alert:** $status_msg"))
+            ));
+        }
+    }
+}
+
+// --- SECTION 3: SCHEDULING (CRON) ---
+add_filter( 'cron_schedules', function ( $schedules ) {
+    $schedules['every_five_minutes'] = array(
+        'interval' => 300,
+        'display'  => esc_html__( 'Every Five Minutes' ),
+    );
+    return $schedules;
+});
+
+if ( ! wp_next_scheduled( 'werewolf_check_twitch_event' ) ) {
+    wp_schedule_event( time(), 'every_five_minutes', 'werewolf_check_twitch_event' );
+}
+add_action( 'werewolf_check_twitch_event', 'werewolf_auto_check_twitch_status' );
