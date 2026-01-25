@@ -1,3 +1,6 @@
+# NOTE: This file can be shared with friends! 
+# Just have them copy this into their own .github/workflows/ folder.
+# They will need to set up their own SECRETS in GitHub settings.
 name: Twitch Relay Service
 
 on:
