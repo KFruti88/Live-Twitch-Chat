@@ -26,7 +26,7 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: npm install tmi.js node-fetch@2 socket.io-client
+        run: npm install
 
       - name: Start Relay
         env:

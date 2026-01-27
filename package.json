@@ -1,12 +1,11 @@
 {
   "name": "twitch-to-discord-relay",
   "version": "1.1.0",
-  "description": "Multi-platform stream relay for Twitch, YouTube, and Trovo",
+  "description": "Multi-platform stream relay for Twitch, YouTube, and Trovo via Streamlabs",
   "main": "relay.js",
   "dependencies": {
     "tmi.js": "^1.8.5",
     "node-fetch": "^2.6.7",
-    "youtube-chat": "^2.2.0",
-    "trovo.js": "^1.2.0"
+    "socket.io-client": "^4.5.0"
   }
 }
