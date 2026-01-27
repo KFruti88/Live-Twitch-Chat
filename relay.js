@@ -49,14 +49,15 @@ async function broadcast(username, message, rawPlatform) {
         return;
     }
 
-    // Create unique message ID for deduplication
-    const messageId = `${username}:${message}:${Date.now() / 10000 | 0}`; // 10-second window
+    // Create unique message ID for deduplication (5-second granularity)
+    const messageId = `${username}:${message}:${Math.floor(Date.now() / 5000)}`; 
     if (messageCache.has(messageId)) {
         console.log(`[DUPLICATE BLOCKED] Message already processed: ${username}`);
         return;
     }
     messageCache.add(messageId);
-    setTimeout(() => messageCache.delete(messageId), 30000); // Clear after 30 seconds
+    // Clear after 10 seconds (2x the granularity window for safety)
+    setTimeout(() => messageCache.delete(messageId), 10000);
 
     const time = new Date().toLocaleTimeString("en-US", {
         timeZone: "America/New_York",

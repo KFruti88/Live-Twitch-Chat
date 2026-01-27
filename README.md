@@ -39,7 +39,6 @@ Edit the `relay.js` file and change:
 * `DISCORD_WEBHOOK`: Replace with your Discord webhook URL (or remove if not using Discord logging)
 
 ### 5. How to Get Your IDs
-### 5. How to Get Your IDs
 
 **YouTube Channel ID:**
 Go to Advanced Settings: Open your browser and go directly to youtube.com/account_advanced. (You must be signed in).
