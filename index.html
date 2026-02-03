@@ -1,106 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        @import url(https://fonts.googleapis.com/css?family=Roboto:700);
+        * { box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: transparent; }
+        body {
+            text-shadow: 0 0 1px #000, 0 0 2px #000;
+            font-family: 'Roboto';
+            font-weight: 700;
+            font-size: 24px;
+            line-height: 1.5em;
+            color: #ffffff;
+        }
+        #log {
+            display: table;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            padding: 0 10px 10px;
+            width: 90%;
+            table-layout: fixed;
+        }
+        #log>div {
+            display: table-row;
+            animation: fadeInRight .3s ease forwards, fadeOut 0.5s ease 15s forwards;
+        }
+        #log .message, #log .meta {
+            vertical-align: top;
+            display: table-cell;
+            padding-bottom: 0.1em;
+        }
+        #log .meta {
+            width: 35%;
+            text-align: right;
+            padding-right: 0.5em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+        #log .message { word-wrap: break-word; width: 65%; }
+        @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body>
+
 <div id="log" class="sl__chat__layout"></div>
 
 <script type="text/template" id="chatlist_item">
-    <div data-from="{from}" data-id="{messageId}">
+    <div data-from="{from}">
         <span class="meta" style="color: {color}">
-            <span class="badges"></span>
             <span class="name">{from}</span>
-            <span class="colon">:</span>
         </span>
         <span class="message">{message}</span>
     </div>
 </script>
 
-<style>
-@import url(https://fonts.googleapis.com/css?family=Roboto:700);
-
-* { box-sizing: border-box; }
-
-body {
-    height: 100%;
-    overflow: hidden;
-    text-shadow: 0 0 1px #000, 0 0 2px #000;
-    font-family: 'Roboto', sans-serif;
-    font-weight: 700;
-    background: transparent;
-}
-
-#log {
-    display: table;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    padding: 10px;
-    width: 90%; /* Standard 90% width */
-    table-layout: fixed;
-}
-
-#log > div {
-    display: table-row;
-    /* Animation: Runs once, stays at end state, then disappears based on delay */
-    animation: fadeInRight .3s ease forwards, fadeOut 0.5s ease 15s forwards;
-}
-
-#log .meta {
-    vertical-align: top;
-    display: table-cell;
-    width: 35%;
-    text-align: right;
-    padding-right: 0.5em;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
-}
-
-#log .message {
-    vertical-align: top;
-    display: table-cell;
-    width: 65%;
-    word-wrap: break-word;
-    color: #ffffff;
-}
-
-.name { margin-left: 0.2em; }
-.colon { display: none; }
-
-@keyframes fadeInRight {
-    from { opacity: 0; transform: translateX(20px); }
-    to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-}
-</style>
+<script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
 
 <script>
-document.addEventListener('onEventReceived', function (obj) {
-    if (obj.detail.command === 'PRIVMSG') {
-        addMessage(obj.detail.data);
-    }
-});
+    const CHAT_CHANNEL = "werewolf3788";
+    // You will need a Twitch Auth Token for the overlay to "speak" in chat
+    // Get one at https://twitchapps.com/tmi/
+    const AUTH_TOKEN = "oauth:your_token_here"; 
 
-function addMessage(data) {
-    const log = document.getElementById('log');
-    const template = document.getElementById('chatlist_item').innerHTML;
+    ComfyJS.onChat = (user, message, flags, self, extra) => {
+        if (self) return; // Prevent loops
 
-    // Use established Town Colors or Twitch color
-    const userColor = data.color || "#fe4f00"; 
+        const log = document.getElementById('log');
+        const template = document.getElementById('chatlist_item').innerHTML;
 
-    let html = template
-        .replace(/{from}/g, data.displayName || data.from)
-        .replace(/{messageId}/g, data.id)
-        .replace(/{color}/g, userColor)
-        .replace(/{message}/g, data.text);
+        let html = template
+            .replace(/{from}/g, user)
+            .replace(/{color}/g, extra.userColor || "#fe4f00")
+            .replace(/{message}/g, message);
 
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    log.appendChild(div.firstElementChild);
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        log.appendChild(div.firstElementChild);
 
-    // Keep memory clean
-    if (log.children.length > 50) {
-        log.removeChild(log.children[0]);
-    }
-}
+        // AUTO-RELAY: This pushes the message back to Twitch if needed
+        // (Usually used if you're receiving YouTube/Restream messages here)
+        if (extra.custom) {
+            ComfyJS.Say(CHAT_CHANNEL, `[Relay] ${user}: ${message}`);
+        }
+    };
+
+    ComfyJS.Init(CHAT_CHANNEL, AUTH_TOKEN);
 </script>
+</body>
+</html>
