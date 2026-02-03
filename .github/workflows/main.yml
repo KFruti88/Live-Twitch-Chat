@@ -1,36 +1,22 @@
-# -------------------------------------------------------------------------
-# SHARING REMINDER: You can share this file with Seth, TJ, Michael, or Ray!
-# They just need to:
-# 1. Fork your repo.
-# 2. Add their OWN 'TWITCH_ACCESS_TOKEN' and 'STREAMLABS_TOKEN' in Secrets.
-# -------------------------------------------------------------------------
-name: Twitch Relay Service
-
+name: Werewolf Chat Relay
 on:
+  workflow_dispatch: # Allows you to start it manually
   schedule:
-    - cron: '*/5 * * * *' 
-  workflow_dispatch:      
-  push:
-    branches: [ main ]    
+    - cron: '0 */6 * * *' # Restarts every 6 hours to keep it fresh
 
 jobs:
   run-relay:
-    runs-on: ubuntu-latest
+    runs-with: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
+      - uses: actions/checkout@v3
+      - name: Install Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
-
       - name: Install Dependencies
-        run: npm install tmi.js node-fetch@2 socket.io-client
-
+        run: npm install tmi.js socket.io-client
       - name: Start Relay
         env:
-          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
           STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
-          # We don't need WP_URL anymore since we are going direct to Discord!
+          TWITCH_AUTH: ${{ secrets.TWITCH_AUTH }}
         run: node relay.js
