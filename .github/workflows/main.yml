@@ -16,10 +16,11 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
-      - name: Install Modern Dependencies
-        run: |
-          npm install tmi.js@latest puppeteer@latest puppeteer-extra@latest puppeteer-extra-plugin-stealth@latest tiktok-live-connector@latest
+      - name: Install Dependencies
+        # This is the fix: telling GitHub exactly what modules to fetch
+        run: npm install tmi.js tiktok-live-connector express axios
       - name: Start Relay
         env:
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
+          # If you haven't added the Discord URL to Secrets, I've hardcoded it in relay.js for now
         run: timeout 21600s node relay.js
