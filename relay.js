@@ -1,21 +1,16 @@
-/* ================================================================
-   WEREWOLF3788 MASTER RELAY HUB
-   Platforms: Twitch, TikTok (Direct), YouTube, Trovo, Facebook
-   ================================================================
-*/
-
 const tmi = require('tmi.js');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const express = require('express');
 const axios = require('axios');
-const app = express(); // This fixes the "app is not defined" error
+const app = express();
 
 app.use(express.json());
 
-// --- CONFIGURATION ---
+// --- CONFIG ---
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 const TT_USER = 'k082412';
+// Your Discord Webhook URL
 const DISCORD_URL = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
 
 const messageCache = new Set();
@@ -26,7 +21,7 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// --- DISCORD WEBHOOK SENDER ---
+// Improved Discord Sender
 async function sendToDiscord(platform, user, message) {
     if (!DISCORD_URL) return;
     try {
@@ -34,13 +29,13 @@ async function sendToDiscord(platform, user, message) {
             content: `**[${platform}]** \`${user}\`: ${message}`
         });
     } catch (err) {
-        console.error("Discord Webhook Error");
+        // Silently log failure to keep the console clean
+        console.log(`> Discord mirror failed for ${platform}`);
     }
 }
 
-// --- 1. TIKTOK DIRECT RELAY ---
+// 1. TikTok Logic (Direct API)
 const tiktok = new WebcastPushConnection(TT_USER);
-
 tiktok.on('chat', data => {
     const key = `TT:${data.uniqueId}:${data.comment}`;
     if (messageCache.has(key)) return;
@@ -52,7 +47,7 @@ tiktok.on('chat', data => {
     cleanCache(key);
 });
 
-// --- 2. MULTI-PLATFORM BRIDGE HUB (YT, Trovo, FB) ---
+// 2. Multi-Platform Bridge (YouTube, Trovo, etc. via StreamElements)
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     let tag = service ? service.toUpperCase() : "STREAM";
@@ -71,19 +66,17 @@ app.post('/api/bridge', (req, res) => {
     res.sendStatus(200);
 });
 
-// --- 3. STARTUP SEQUENCE ---
+// 3. Startup Sequence
 client.connect().then(() => {
     console.log("🚀 Twitch Connected.");
     
-    // Connect TikTok
     tiktok.connect()
         .then(() => {
             console.log(`📡 Connected to TikTok: ${TT_USER}`);
             sendToDiscord('System', 'Bot', 'Relay Hub is now LIVE.');
         })
-        .catch(() => console.log("TikTok Offline (Check if you are Live)"));
+        .catch(() => console.log("TikTok Connection Failed (Check if you are Live)"));
 
-    // Start the Bridge API
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`✅ Multi-Stream Bridge listening on port ${PORT}`));
 });
