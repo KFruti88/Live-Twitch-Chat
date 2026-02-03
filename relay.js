@@ -1,19 +1,14 @@
 const tmi = require('tmi.js');
+const io = require('socket.io-client');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 
 puppeteer.use(StealthPlugin());
 
-// --- YOUR PERSONAL CONFIG ---
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
-
-// Permanent links to YOUR personal chats
-const YT_LIVE_URL = 'https://www.youtube.com/@werewolf3788/live';
-const RUMBLE_URL = 'https://rumble.com/chat/popup/428374630';
-const KICK_URL = 'https://kick.com/popout/werewolf71888/chat';
-const TT_USER = 'k082412';
+const STREAMLABS_TOKEN = process.env.STREAMLABS_TOKEN;
 
 const messageCache = new Set();
 const cleanCache = (key) => setTimeout(() => messageCache.delete(key), 60000);
@@ -23,8 +18,8 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// 1. TikTok (Direct Connection - Most Reliable)
-const tiktok = new WebcastPushConnection(TT_USER);
+// 1. TIKTOK (Working)
+const tiktok = new WebcastPushConnection('k082412');
 tiktok.on('chat', data => {
     const key = `TT:${data.uniqueId}:${data.comment}`;
     if (messageCache.has(key)) return;
@@ -33,11 +28,28 @@ tiktok.on('chat', data => {
     cleanCache(key);
 });
 
-// 2. Ghost Browser Watcher (YouTube, Rumble, Kick)
-async function startDirectRelays() {
+// 2. FACEBOOK & YOUTUBE (Via Streamlabs Socket - No browser needed)
+const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, { transports: ['websocket'] });
+socket.on('event', (eventData) => {
+    if (eventData.type === 'message' || eventData.type === 'comment') {
+        const msg = eventData.message[0];
+        const key = `SL:${msg.from}:${msg.text}`;
+        if (messageCache.has(key) || /^\[(YT|FB|TT|Rumble|Kick)\]/.test(msg.text)) return;
+
+        let tag = eventData.for === 'youtube_account' ? 'YT' : (eventData.for === 'facebook_account' ? 'FB' : null);
+        if (tag) {
+            client.say(CHAT_CHANNEL, `[${tag}] ${msg.from}: ${msg.text}`);
+            messageCache.add(key);
+            cleanCache(key);
+        }
+    }
+});
+
+// 3. RUMBLE & KICK (Stealth Browser)
+async function startStealthRelays() {
     const browser = await puppeteer.launch({ 
         headless: "new", 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'] 
+        args: ['--no-sandbox', '--disable-blink-features=AutomationControlled'] 
     });
 
     const watch = async (url, tag, listSel, itemSel, userSel, msgSel) => {
@@ -45,11 +57,8 @@ async function startDirectRelays() {
             const page = await browser.newPage();
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
             await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-            
-            // Wait for the chat box to appear
             await page.waitForSelector(listSel, { timeout: 30000 });
-            console.log(`📡 Directly monitoring ${tag}...`);
-
+            
             await page.exposeFunction('relay', (u, m) => {
                 const key = `${tag}:${u}:${m}`;
                 if (messageCache.has(key)) return;
@@ -62,30 +71,23 @@ async function startDirectRelays() {
                 const observer = new MutationObserver(mutations => {
                     mutations.forEach(mu => mu.addedNodes.forEach(node => {
                         if (node.nodeType === 1) {
-                            const item = node.matches(iS) ? node : node.querySelector(iS);
-                            if (item) {
-                                const u = item.querySelector(uS)?.innerText || "Viewer";
-                                const m = item.querySelector(mS)?.innerText;
-                                if (m) window.relay(u.trim(), m.trim());
-                            }
+                            const u = node.querySelector(uS)?.innerText;
+                            const m = node.querySelector(mS)?.innerText;
+                            if (u && m) window.relay(u.trim(), m.trim());
                         }
                     }));
                 });
                 observer.observe(document.querySelector(lS), { childList: true, subtree: true });
             }, listSel, itemSel, userSel, msgSel);
-        } catch (e) { console.log(`✖ ${tag} is not live or blocked.`); }
+        } catch (e) { console.log(`✖ ${tag} Browser Error: Check if live.`); }
     };
 
-    // YouTube Direct
-    await watch(YT_LIVE_URL, 'YT', '#chat-messages', 'yt-live-chat-text-message-renderer', '#author-name', '#message');
-    // Rumble Direct
-    await watch(RUMBLE_URL, 'Rumble', '.chat-history--list', '.chat-history--item', '.chat-history--user', '.chat-history--message');
-    // Kick Direct
-    await watch(KICK_URL, 'Kick', '#chat-list-content', '.chat-entry', '.chat-entry-username', '.chat-entry-content');
+    await watch('https://rumble.com/chat/popup/428374630', 'Rumble', '.chat-history--list', '.chat-history--item', '.chat-history--user', '.chat-history--message');
+    await watch('https://kick.com/popout/werewolf71888/chat', 'Kick', '#chat-list-content', '.chat-entry', '.chat-entry-username', '.chat-entry-content');
 }
 
 client.connect().then(() => {
-    console.log("🚀 Direct Source Relay Active!");
+    console.log("🚀 Multi-Core Relay Online!");
     tiktok.connect().catch(() => {});
-    startDirectRelays();
+    startStealthRelays();
 });
