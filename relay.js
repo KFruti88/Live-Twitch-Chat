@@ -1,18 +1,18 @@
 const tmi = require('tmi.js');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const express = require('express');
+const axios = require('axios'); // Required for Discord Webhooks
 const app = express();
 
-// Enable the bot to read the data sent from StreamElements
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // --- CONFIG ---
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 const TT_USER = 'k082412';
+// Your Discord Webhook URL
+const DISCORD_URL = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
 
-// Memory to stop duplicates
 const messageCache = new Set();
 const cleanCache = (key) => setTimeout(() => messageCache.delete(key), 60000);
 
@@ -21,7 +21,18 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// --- 1. TIKTOK LOGIC (KEEPING THIS RUNNING) ---
+// Function to send messages to Discord
+async function sendToDiscord(platform, user, message) {
+    try {
+        await axios.post(DISCORD_URL, {
+            content: `**[${platform}] ${user}**: ${message}`
+        });
+    } catch (err) {
+        console.error("Discord Webhook Error:", err.message);
+    }
+}
+
+// 1. TikTok Connection (Direct API)
 const tiktok = new WebcastPushConnection(TT_USER);
 
 tiktok.on('chat', data => {
@@ -29,46 +40,41 @@ tiktok.on('chat', data => {
     if (messageCache.has(key)) return;
     
     client.say(CHAT_CHANNEL, `[TT] ${data.uniqueId}: ${data.comment}`);
+    sendToDiscord('TikTok', data.uniqueId, data.comment);
+    
     messageCache.add(key);
     cleanCache(key);
 });
 
-// --- 2. THE BRIDGE LOGIC (FOR YT, TROVO, FB) ---
-// This listens for the 'fetch' calls from your StreamElements Widget
+// 2. The Bridge (For YouTube, Trovo, Facebook via StreamElements)
 app.post('/api/bridge', (req, res) => {
-    try {
-        const { user, text, service } = req.body;
+    const { user, text, service } = req.body;
+    const tag = service ? service.toUpperCase() : "STREAM";
+    
+    const key = `${tag}:${user}:${text}`;
+    if (!messageCache.has(key)) {
+        client.say(CHAT_CHANNEL, `[${tag}] ${user}: ${text}`);
+        sendToDiscord(tag, user, text);
         
-        // Map the service name to a clean tag
-        let tag = "Stream";
-        if (service === 'youtube') tag = "YT";
-        else if (service === 'trovo') tag = "Trovo";
-        else if (service === 'facebook') tag = "FB";
-
-        const key = `${tag}:${user}:${text}`;
-        if (!messageCache.has(key)) {
-            client.say(CHAT_CHANNEL, `[${tag}] ${user}: ${text}`);
-            messageCache.add(key);
-            cleanCache(key);
-        }
-        res.status(200).send('Relayed');
-    } catch (err) {
-        res.status(500).send('Error');
+        messageCache.add(key);
+        cleanCache(key);
     }
+    res.sendStatus(200);
 });
 
-// --- 3. START EVERYTHING ---
+// 3. Twitch Mirror (Send your own Twitch chat to Discord too)
+client.on('message', (channel, tags, message, self) => {
+    if (self) return; // Ignore the bot's own relayed messages
+    sendToDiscord('Twitch', tags['display-name'], message);
+});
+
+// Start Everything
 client.connect().then(() => {
     console.log("🚀 Twitch Connected.");
-    
-    // Start TikTok
     tiktok.connect()
         .then(() => console.log(`📡 Connected to TikTok: ${TT_USER}`))
-        .catch(err => console.log("TikTok Connection Failed, but relay is still up."));
-
-    // Start the Bridge Server
+        .catch(() => console.log("TikTok Offline"));
+    
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-        console.log(`RTMP Bridge listening on port ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`Bridge listening on port ${PORT}`));
 });
