@@ -10,10 +10,12 @@ const CHAT_CHANNEL = 'werewolf3788';
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 const TT_USER = 'k082412';
 
-// URLs for Direct Monitoring
-const RUMBLE_URL = 'https://rumble.com/chat/popup/428374630';
+// DIRECT LINKS FROM YOUR PROMPT
+const YT_LIVE_URL = 'https://www.youtube.com/@Werewolf3788/live';
+const RUMBLE_URL = 'https://rumble.com/user/Werewolf3788'; // Bot will find active stream here
+const FB_LIVE_URL = 'https://www.facebook.com/3788werewolf/live';
+const TROVO_URL = 'https://trovo.live/s/Werewolf3788';
 const KICK_URL = 'https://kick.com/popout/werewolf71888/chat';
-const YT_LIVE_URL = 'https://www.youtube.com/@werewolf3788/live';
 
 const messageCache = new Set();
 const cleanCache = (key) => setTimeout(() => messageCache.delete(key), 60000);
@@ -23,7 +25,7 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// 1. TikTok Connector (Already Working)
+// 1. TikTok (API)
 const tiktok = new WebcastPushConnection(TT_USER);
 tiktok.on('chat', data => {
     const key = `TT:${data.uniqueId}:${data.comment}`;
@@ -33,8 +35,8 @@ tiktok.on('chat', data => {
     cleanCache(key);
 });
 
-// 2. Ghost Browser for everything else
-async function startGhostRelays() {
+// 2. Multi-Platform Ghost Scraper
+async function startMultiScraper() {
     const browser = await puppeteer.launch({ 
         headless: "new", 
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled'] 
@@ -44,11 +46,11 @@ async function startGhostRelays() {
         try {
             const page = await browser.newPage();
             await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
-            
-            // Setting a long timeout so it doesn't crash if the site is slow
             await page.goto(url, { waitUntil: 'networkidle2', timeout: 90000 });
+            
+            // Wait for chat elements
             await page.waitForSelector(listSel, { timeout: 30000 });
-            console.log(`📡 Now watching: ${tag}`);
+            console.log(`📡 Watching ${tag}...`);
 
             await page.exposeFunction('relay', (u, m) => {
                 const key = `${tag}:${u}:${m}`;
@@ -71,20 +73,19 @@ async function startGhostRelays() {
                 });
                 observer.observe(document.querySelector(lS), { childList: true, subtree: true });
             }, listSel, itemSel, userSel, msgSel);
-        } catch (e) {
-            console.log(`⚠️ Note: ${tag} is not active or blocked right now.`);
-        }
+        } catch (e) { console.log(`⚠️ ${tag} not currently active.`); }
     };
 
-    // Start individual watchers
-    await watch(RUMBLE_URL, 'Rumble', '.chat-history--list', '.chat-history--item', '.chat-history--user', '.chat-history--message');
-    await watch(KICK_URL, 'Kick', '#chat-list-content', '.chat-entry', '.chat-entry-username', '.chat-entry-content');
+    // Watch all platforms
     await watch(YT_LIVE_URL, 'YT', '#chat-messages', 'yt-live-chat-text-message-renderer', '#author-name', '#message');
+    await watch(RUMBLE_URL, 'Rumble', '.chat-history--list', '.chat-history--item', '.chat-history--user', '.chat-history--message');
+    await watch(FB_LIVE_URL, 'FB', '.messages-list', '.message-item', '.message-sender', '.message-text');
+    await watch(TROVO_URL, 'Trovo', '.chat-list', '.chat-item', '.nick-name', '.content');
+    await watch(KICK_URL, 'Kick', '#chat-list-content', '.chat-entry', '.chat-entry-username', '.chat-entry-content');
 }
 
-// 3. Start Everything
 client.connect().then(() => {
-    console.log("🚀 Twitch Connected.");
-    tiktok.connect().then(() => console.log(`📡 Connected to TikTok: ${TT_USER}`)).catch(() => {});
-    startGhostRelays();
+    console.log("🚀 All-In-One Relay Active!");
+    tiktok.connect().catch(() => {});
+    startMultiScraper();
 });
