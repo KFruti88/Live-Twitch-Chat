@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Chat Overlay</title>
+    
+    <style>
+        /* CSS Reset and Base Styles */
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Container: Default 90% width as per standards */
+        #log {
+            width: 90%;
+            height: 100vh;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* New messages at bottom */
+            overflow: hidden;
+        }
+
+        /* Chat Item Styling */
+        .sl__chat__layout > div {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 18px;
+            word-wrap: break-word;
+            
+            /* Animation: Set to 'forwards' so it stays at the end state, no 'infinite' loop */
+            animation: fadeInSlide 0.4s ease-out forwards;
+        }
+
+        /* Entrance Animation Logic */
+        @keyframes fadeInSlide {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .meta {
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .name {
+            text-transform: capitalize;
+        }
+
+        .message {
+            color: #ffffff;
+        }
+
+        /* Responsive: Vertical stacking for small screens */
+        @media screen and (max-width: 768px) {
+            #log {
+                width: 95%;
+            }
+            .sl__chat__layout > div {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="log" class="sl__chat__layout">
+        </div>
+
+    <script type="text/template" id="chatlist_item">
+        <div data-from="{from}" data-id="{messageId}">
+            <span class="meta" style="color: {color}">
+                <span class="badges"></span>
+                <span class="name">{from}</span>
+            </span>
+            <span class="message">{message}</span>
+        </div>
+    </script>
+
+    <script>
+        /**
+         * Logic to handle message addition without looping.
+         * Ensure your Streamlabs or custom script calls this 'addMessage' function.
+         */
+        function addMessage(data) {
+            const log = document.getElementById('log');
+            const template = document.getElementById('chatlist_item').innerHTML;
+
+            // Replace template placeholders with real data
+            let html = template
+                .replace(/{from}/g, data.from)
+                .replace(/{messageId}/g, data.messageId)
+                .replace(/{color}/g, data.color || '#fe4f00') // Fallback to Orange
+                .replace(/{message}/g, data.message);
+
+            // Create a temporary container to turn string into DOM element
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            const messageElement = div.firstElementChild;
+
+            // Append to the log
+            log.appendChild(messageElement);
+
+            // Optional: Remove old messages to keep DOM light (prevents lag)
+            const messages = log.getElementsByTagName('div');
+            if (messages.length > 50) {
+                log.removeChild(messages[0]);
+            }
+        }
+
+        // Note: For actual Twitch connection, use ComfyJS or the Streamlabs API bridge.
+        // This script provides the framework to display messages added via the template.
+    </script>
+</body>
+</html>
