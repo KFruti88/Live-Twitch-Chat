@@ -1,29 +1,27 @@
-const tmi = require('tmi.js');
-const io = require('socket.io-client');
+name: Werewolf All-In-One Relay
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
 
-const TWITCH_CHANNEL = 'werewolf3788';
-const STREAMLABS_TOKEN = process.env.STREAMLABS_TOKEN;
-const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
-
-const client = new tmi.Client({
-    identity: { username: TWITCH_CHANNEL, password: `oauth:${TWITCH_TOKEN}` },
-    channels: [TWITCH_CHANNEL]
-});
-
-const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, { transports: ['websocket'] });
-
-socket.on('event', (eventData) => {
-    if (eventData.type === 'message' || eventData.type === 'comment') {
-        const msg = eventData.message[0];
-        if (/^\[(YT|FB|TR|Rumble)\]/.test(msg.text)) return; // Loop Killer
-
-        let tag = 'Stream';
-        if (eventData.for === 'youtube_account') tag = 'YT';
-        else if (eventData.for === 'facebook_account') tag = 'FB';
-        else if (eventData.for === 'trovo_account') tag = 'TR';
-
-        client.say(TWITCH_CHANNEL, `[${tag}] ${msg.from}: ${msg.text}`);
-    }
-});
-
-client.connect();
+jobs:
+  run-relays:
+    runs-on: ubuntu-latest
+    concurrency: 
+      group: relay-group
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Node & Tools
+        run: npm install tmi.js socket.io-client puppeteer
+      - name: Start All Relays
+        env:
+          STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
+          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
+        # Runs both scripts in the background
+        run: |
+          node relay.js & 
+          node rumble-relay.js &
+          wait -n
