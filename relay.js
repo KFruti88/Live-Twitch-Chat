@@ -15,11 +15,10 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// --- Streamlabs Reconnection Logic ---
+// --- Streamlabs Socket (YT/FB) ---
 const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, { 
     transports: ['websocket'],
-    reconnection: true,
-    reconnectionDelay: 5000 
+    reconnection: true 
 });
 
 socket.on('event', (eventData) => {
@@ -35,52 +34,59 @@ socket.on('event', (eventData) => {
 const tiktok = new WebcastPushConnection('k082412');
 tiktok.on('chat', data => client.say(CHAT_CHANNEL, `[TT] ${data.uniqueId}: ${data.comment}`));
 
-// --- Ghost Browser (Rumble, Kick, Trovo) ---
+// --- Ghost Browser (Rumble, Kick) ---
 async function startGhostRelays() {
+    // Launching with a specialized 2026 "No-Detector" flag
     const browser = await puppeteer.launch({ 
         headless: "new", 
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'] 
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled'
+        ] 
     });
 
     const watch = async (url, tag, listSel, itemSel, userSel, msgSel) => {
-        try {
-            const page = await browser.newPage();
-            // Set a massive timeout because GitHub Runners can be slow
-            await page.setDefaultNavigationTimeout(60000); 
-            await page.goto(url, { waitUntil: 'networkidle2' });
-            
-            // Wait for the chat list to exist
-            await page.waitForSelector(listSel, { timeout: 30000 });
-            console.log(`📡 Watching ${tag}...`);
+        const page = await browser.newPage();
+        // Mimic a 2026 Chrome browser on Windows
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        
+        console.log(`📡 Ghost Browser: Opening ${tag}...`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-            await page.exposeFunction('relay', (u, m) => client.say(CHAT_CHANNEL, `[${tag}] ${u}: ${m}`));
-            
-            await page.evaluate((lS, iS, uS, mS) => {
-                const observer = new MutationObserver(mutations => {
-                    mutations.forEach(mu => mu.addedNodes.forEach(node => {
-                        if (node.nodeType === 1) {
-                            const item = node.matches(iS) ? node : node.querySelector(iS);
-                            if (item) {
-                                const u = item.querySelector(uS)?.innerText || "Viewer";
-                                const m = item.querySelector(mS)?.innerText;
-                                if (m) window.relay(u.trim(), m.trim());
-                            }
+        // Check if we hit a Cloudflare block
+        const isBlocked = await page.$('iframe[src*="challenges.cloudflare.com"]');
+        if (isBlocked) {
+            console.log(`✖ ${tag} is blocked by Cloudflare. Attempting to wait it out...`);
+            await new Promise(r => setTimeout(r, 15000)); // Wait 15s for auto-pass
+        }
+
+        await page.exposeFunction('relay', (u, m) => client.say(CHAT_CHANNEL, `[${tag}] ${u}: ${m}`));
+        await page.evaluate((lS, iS, uS, mS) => {
+            const observer = new MutationObserver(mutations => {
+                mutations.forEach(mu => mu.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) {
+                        const item = node.matches(iS) ? node : node.querySelector(iS);
+                        if (item) {
+                            const u = item.querySelector(uS)?.innerText || "Viewer";
+                            const m = item.querySelector(mS)?.innerText;
+                            if (m) window.relay(u.trim(), m.trim());
                         }
-                    }));
-                });
-                // Target the PARENT of the chat list for better detection
-                observer.observe(document.querySelector(lS), { childList: true, subtree: true });
-            }, listSel, itemSel, userSel, msgSel);
-        } catch (e) { console.error(`✖ ${tag} Error:`, e.message); }
+                    }
+                }));
+            });
+            const list = document.querySelector(lS);
+            if (list) observer.observe(list, { childList: true, subtree: true });
+        }, listSel, itemSel, userSel, msgSel);
     };
 
-    // Kick and Rumble often use nested frames, so we target the broad list selectors
+    // Watch Rumble & Kick
     await watch('https://rumble.com/chat/popup/428374630', 'Rumble', '.chat-history--list', '.chat-history--item', '.chat-history--user', '.chat-history--message');
     await watch('https://kick.com/popout/werewolf71888/chat', 'Kick', '#chat-list-content', '.chat-entry', '.chat-entry-username', '.chat-entry-content');
 }
 
 client.connect().then(() => {
     console.log("🚀 Relay Master Online!");
-    tiktok.connect().catch(() => console.log("TikTok Offline"));
+    tiktok.connect().catch(() => console.log("TikTok Connection Waiting..."));
     startGhostRelays();
 });
