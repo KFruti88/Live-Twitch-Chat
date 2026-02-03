@@ -1,49 +1,54 @@
 const tmi = require('tmi.js');
 const io = require('socket.io-client');
 
-// Configuration
-const TWITCH_CHANNEL = 'werewolf3788'; 
-// These come from your GitHub Secrets for security
-const STREAMLABS_TOKEN = process.env.STREAMLABS_TOKEN; 
-const TWITCH_AUTH = process.env.TWITCH_AUTH; 
-
-const twitchClient = new tmi.Client({
-    options: { debug: true },
-    identity: {
-        username: TWITCH_CHANNEL,
-        password: `oauth:${TWITCH_AUTH}`
+// 1. Load Secrets from GitHub Environment
+const config = {
+    twitch: {
+        channel: 'werewolf3788',
+        username: 'werewolf3788',
+        token: process.env.TWITCH_ACCESS_TOKEN // oauth token
     },
-    channels: [TWITCH_CHANNEL]
+    streamlabsToken: process.env.STREAMLABS_TOKEN
+};
+
+// 2. Initialize Twitch Client
+const client = new tmi.Client({
+    options: { debug: true },
+    connection: { reconnect: true, secure: true },
+    identity: {
+        username: config.twitch.username,
+        password: `oauth:${config.twitch.token}`
+    },
+    channels: [config.twitch.channel]
 });
 
-// Connect to Streamlabs Socket (catches YouTube/FB/Trovo)
-const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, {
+// 3. Initialize Streamlabs Socket
+const socket = io(`https://sockets.streamlabs.com?token=${config.streamlabsToken}`, {
     transports: ['websocket']
 });
 
-socket.on('connect', () => console.log("Connected to Streamlabs Wide-Net"));
-
+// 4. Logic: When a message arrives from the Wide-Net
 socket.on('event', (eventData) => {
-    let msgData = null;
-    let platform = "??";
-
-    // Detect YouTube or other platform messages
+    // Standard Message or YouTube Comment
     if (eventData.type === 'message' || eventData.type === 'comment') {
-        msgData = eventData.message[0];
-        platform = eventData.for === 'youtube_account' ? 'YT' : 'Stream';
-    }
+        const msg = eventData.message[0];
+        
+        // Loop Killer: Don't relay if it's already a relayed message
+        if (msg.text.startsWith('[YT]') || msg.text.startsWith('[TR]')) return;
 
-    if (msgData && msgData.text) {
-        // Prevent looping: Don't relay messages that are already tags
-        if (!msgData.text.startsWith('[YT]') && !msgData.text.startsWith('[TW]')) {
-            const formattedMessage = `[${platform}] ${msgData.from}: ${msgData.text}`;
-            
-            // PUSH TO TWITCH CHAT
-            twitchClient.say(TWITCH_CHANNEL, formattedMessage)
-                .then(() => console.log(`Relayed: ${formattedMessage}`))
-                .catch(err => console.error(err));
-        }
+        // Platform Detection
+        let tag = 'Stream';
+        if (eventData.for === 'youtube_account') tag = 'YT';
+        else if (eventData.for === 'trovo_account') tag = 'TR';
+        else if (eventData.for === 'facebook_account') tag = 'FB';
+
+        const relayMessage = `[${tag}] ${msg.from}: ${msg.text}`;
+
+        // Push to Twitch
+        client.say(config.twitch.channel, relayMessage)
+            .then(() => console.log(`✔ Relayed: ${relayMessage}`))
+            .catch(err => console.error(`✖ Error: ${err}`));
     }
 });
 
-twitchClient.connect();
+client.connect().then(() => console.log("🚀 Werewolf Relay Online!"));
