@@ -10,6 +10,7 @@ app.use(express.json());
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 const TT_USER = 'k082412';
+// Your Discord Webhook URL
 const DISCORD_URL = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
 
 const messageCache = new Set();
@@ -20,15 +21,20 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
+// Improved Discord Sender
 async function sendToDiscord(platform, user, message) {
+    if (!DISCORD_URL) return;
     try {
-        await axios.post(DISCORD_URL, { content: `**[${platform}] ${user}**: ${message}` });
-    } catch (err) { console.error("Discord Error"); }
+        await axios.post(DISCORD_URL, {
+            content: `**[${platform}]** \`${user}\`: ${message}`
+        });
+    } catch (err) {
+        console.error("Discord Webhook Error: Check if the URL is correct.");
+    }
 }
 
 // 1. TikTok Logic
 const tiktok = new WebcastPushConnection(TT_USER);
-
 tiktok.on('chat', data => {
     const key = `TT:${data.uniqueId}:${data.comment}`;
     if (messageCache.has(key)) return;
@@ -40,7 +46,7 @@ tiktok.on('chat', data => {
     cleanCache(key);
 });
 
-// 2. Bridge Logic (YouTube / Trovo)
+// 2. Bridge Logic (For YouTube, Trovo, etc. via StreamElements)
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     const tag = service ? service.toUpperCase() : "STREAM";
@@ -55,16 +61,17 @@ app.post('/api/bridge', (req, res) => {
     res.sendStatus(200);
 });
 
-// 3. Startup Sequence (TikTok First!)
+// 3. Startup Sequence
 client.connect().then(() => {
     console.log("🚀 Twitch Connected.");
     
-    // Connect TikTok immediately
     tiktok.connect()
-        .then(() => console.log(`📡 TikTok Relay Active for: ${TT_USER}`))
-        .catch(err => console.log("TikTok Connection Failed - Check if you are Live."));
+        .then(() => {
+            console.log(`📡 TikTok Relay Active for: ${TT_USER}`);
+            sendToDiscord('System', 'Bot', 'Relay is now LIVE on all platforms.');
+        })
+        .catch(() => console.log("TikTok Connection Failed (Check if Live)"));
 
-    // Start Bridge for others
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`✅ Multi-Stream Bridge Online on Port ${PORT}`));
 });
