@@ -1,34 +1,29 @@
-name: Werewolf Chat Relay
-on:
-  workflow_dispatch: # Allows manual start (just in case)
-  push:
-    branches: [ main ] # Starts automatically when you push code
-  schedule:
-    - cron: '0 */4 * * *' # Auto-starts every 4 hours (to stay "warm")
+const tmi = require('tmi.js');
+const io = require('socket.io-client');
 
-jobs:
-  relay:
-    runs-on: ubuntu-latest
-    # Prevents multiple copies of the bot from running at once
-    concurrency:
-      group: relay-group
-      cancel-in-progress: true 
+const TWITCH_CHANNEL = 'werewolf3788';
+const STREAMLABS_TOKEN = process.env.STREAMLABS_TOKEN;
+const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+const client = new tmi.Client({
+    identity: { username: TWITCH_CHANNEL, password: `oauth:${TWITCH_TOKEN}` },
+    channels: [TWITCH_CHANNEL]
+});
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
+const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, { transports: ['websocket'] });
 
-      - name: Install Dependencies
-        run: npm install tmi.js socket.io-client
+socket.on('event', (eventData) => {
+    if (eventData.type === 'message' || eventData.type === 'comment') {
+        const msg = eventData.message[0];
+        if (/^\[(YT|FB|TR|Rumble)\]/.test(msg.text)) return; // Loop Killer
 
-      - name: Start Relay
-        env:
-          STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
-          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
-        # Runs for 6 hours then shuts down cleanly so the next scheduled one can start
-        run: timeout 21600s node relay.js || echo "Relay cycle finished."
+        let tag = 'Stream';
+        if (eventData.for === 'youtube_account') tag = 'YT';
+        else if (eventData.for === 'facebook_account') tag = 'FB';
+        else if (eventData.for === 'trovo_account') tag = 'TR';
+
+        client.say(TWITCH_CHANNEL, `[${tag}] ${msg.from}: ${msg.text}`);
+    }
+});
+
+client.connect();
