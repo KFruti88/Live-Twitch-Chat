@@ -15,10 +15,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 20
-      - name: Install All Dependencies
-        # This line ensures EVERY library you need is installed
-        run: npm install tmi.js socket.io-client puppeteer puppeteer-extra puppeteer-extra-plugin-stealth tiktok-live-connector
+          node-version: 20 # Using a modern stable Node version
+      - name: Install Modern Dependencies
+        # We are forcing the latest versions here to avoid those "deprecated" errors
+        run: npm install tmi.js@latest socket.io-client@latest puppeteer@latest puppeteer-extra@latest puppeteer-extra-plugin-stealth@latest tiktok-live-connector@latest
       - name: Start Relay
         env:
           STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
