@@ -1,21 +1,34 @@
 name: Werewolf Chat Relay
 on:
-  workflow_dispatch: # Allows you to start it manually before your stream
+  workflow_dispatch: # Allows manual start (just in case)
+  push:
+    branches: [ main ] # Starts automatically when you push code
+  schedule:
+    - cron: '0 */4 * * *' # Auto-starts every 4 hours (to stay "warm")
 
 jobs:
-  run-relay:
+  relay:
     runs-on: ubuntu-latest
+    # Prevents multiple copies of the bot from running at once
+    concurrency:
+      group: relay-group
+      cancel-in-progress: true 
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
+
       - name: Install Dependencies
         run: npm install tmi.js socket.io-client
-      - name: Execute Relay
+
+      - name: Start Relay
         env:
           STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
-        # Timeout set to 6 hours for a standard stream length
-        run: timeout 21600s node relay.js || echo "Relay session ended."
+        # Runs for 6 hours then shuts down cleanly so the next scheduled one can start
+        run: timeout 21600s node relay.js || echo "Relay cycle finished."
