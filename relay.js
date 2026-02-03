@@ -1,7 +1,7 @@
 const tmi = require('tmi.js');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const express = require('express');
-const axios = require('axios'); // Required for Discord Webhooks
+const axios = require('axios');
 const app = express();
 
 app.use(express.json());
@@ -10,7 +10,6 @@ app.use(express.json());
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 const TT_USER = 'k082412';
-// Your Discord Webhook URL
 const DISCORD_URL = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
 
 const messageCache = new Set();
@@ -21,18 +20,13 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// Function to send messages to Discord
 async function sendToDiscord(platform, user, message) {
     try {
-        await axios.post(DISCORD_URL, {
-            content: `**[${platform}] ${user}**: ${message}`
-        });
-    } catch (err) {
-        console.error("Discord Webhook Error:", err.message);
-    }
+        await axios.post(DISCORD_URL, { content: `**[${platform}] ${user}**: ${message}` });
+    } catch (err) { console.error("Discord Error"); }
 }
 
-// 1. TikTok Connection (Direct API)
+// 1. TikTok Logic
 const tiktok = new WebcastPushConnection(TT_USER);
 
 tiktok.on('chat', data => {
@@ -46,35 +40,31 @@ tiktok.on('chat', data => {
     cleanCache(key);
 });
 
-// 2. The Bridge (For YouTube, Trovo, Facebook via StreamElements)
+// 2. Bridge Logic (YouTube / Trovo)
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     const tag = service ? service.toUpperCase() : "STREAM";
-    
     const key = `${tag}:${user}:${text}`;
+    
     if (!messageCache.has(key)) {
         client.say(CHAT_CHANNEL, `[${tag}] ${user}: ${text}`);
         sendToDiscord(tag, user, text);
-        
         messageCache.add(key);
         cleanCache(key);
     }
     res.sendStatus(200);
 });
 
-// 3. Twitch Mirror (Send your own Twitch chat to Discord too)
-client.on('message', (channel, tags, message, self) => {
-    if (self) return; // Ignore the bot's own relayed messages
-    sendToDiscord('Twitch', tags['display-name'], message);
-});
-
-// Start Everything
+// 3. Startup Sequence (TikTok First!)
 client.connect().then(() => {
     console.log("🚀 Twitch Connected.");
-    tiktok.connect()
-        .then(() => console.log(`📡 Connected to TikTok: ${TT_USER}`))
-        .catch(() => console.log("TikTok Offline"));
     
+    // Connect TikTok immediately
+    tiktok.connect()
+        .then(() => console.log(`📡 TikTok Relay Active for: ${TT_USER}`))
+        .catch(err => console.log("TikTok Connection Failed - Check if you are Live."));
+
+    // Start Bridge for others
     const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`Bridge listening on port ${PORT}`));
+    app.listen(PORT, () => console.log(`✅ Multi-Stream Bridge Online on Port ${PORT}`));
 });
