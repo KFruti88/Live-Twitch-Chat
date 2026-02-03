@@ -1,54 +1,51 @@
 const tmi = require('tmi.js');
 const io = require('socket.io-client');
 
-// 1. Load Secrets from GitHub Environment
-const config = {
-    twitch: {
-        channel: 'werewolf3788',
-        username: 'werewolf3788',
-        token: process.env.TWITCH_ACCESS_TOKEN // oauth token
-    },
-    streamlabsToken: process.env.STREAMLABS_TOKEN
-};
+// --- Configuration ---
+const CHAT_CHANNEL = 'werewolf3788'; 
+const STREAMLABS_TOKEN = process.env.STREAMLABS_TOKEN;
+const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
 
-// 2. Initialize Twitch Client
+// 1. Setup Twitch Bot
 const client = new tmi.Client({
-    options: { debug: true },
-    connection: { reconnect: true, secure: true },
+    options: { debug: false },
     identity: {
-        username: config.twitch.username,
-        password: `oauth:${config.twitch.token}`
+        username: CHAT_CHANNEL,
+        password: `oauth:${TWITCH_TOKEN}`
     },
-    channels: [config.twitch.channel]
+    channels: [CHAT_CHANNEL]
 });
 
-// 3. Initialize Streamlabs Socket
-const socket = io(`https://sockets.streamlabs.com?token=${config.streamlabsToken}`, {
+// 2. Setup Streamlabs Socket (The "Wide-Net")
+const socket = io(`https://sockets.streamlabs.com?token=${STREAMLABS_TOKEN}`, {
     transports: ['websocket']
 });
 
-// 4. Logic: When a message arrives from the Wide-Net
+// 3. The Relay Function
 socket.on('event', (eventData) => {
-    // Standard Message or YouTube Comment
+    // Only process chat messages or comments
     if (eventData.type === 'message' || eventData.type === 'comment') {
         const msg = eventData.message[0];
         
-        // Loop Killer: Don't relay if it's already a relayed message
-        if (msg.text.startsWith('[YT]') || msg.text.startsWith('[TR]')) return;
+        // Loop Killer: Stop the bot from relaying its own messages
+        if (msg.text.startsWith('[YT]') || msg.text.startsWith('[FB]') || msg.text.startsWith('[TR]')) return;
 
-        // Platform Detection
-        let tag = 'Stream';
+        // Detect Source Platform
+        let tag = '??';
         if (eventData.for === 'youtube_account') tag = 'YT';
-        else if (eventData.for === 'trovo_account') tag = 'TR';
         else if (eventData.for === 'facebook_account') tag = 'FB';
-
-        const relayMessage = `[${tag}] ${msg.from}: ${msg.text}`;
-
-        // Push to Twitch
-        client.say(config.twitch.channel, relayMessage)
-            .then(() => console.log(`✔ Relayed: ${relayMessage}`))
-            .catch(err => console.error(`✖ Error: ${err}`));
+        else if (eventData.for === 'trovo_account') tag = 'TR';
+        
+        // Only relay if it's NOT from Twitch (to avoid doubling Twitch chat)
+        if (tag !== '??') {
+            const formattedMsg = `[${tag}] ${msg.from}: ${msg.text}`;
+            client.say(CHAT_CHANNEL, formattedMsg)
+                .then(() => console.log(`✔ Relayed: ${formattedMsg}`))
+                .catch(err => console.error(`✖ Failed: ${err}`));
+        }
     }
 });
 
-client.connect().then(() => console.log("🚀 Werewolf Relay Online!"));
+// 4. Start the Engines
+client.connect().then(() => console.log("🚀 Werewolf Relay: Connected to Twitch"));
+socket.on('connect', () => console.log("📡 Werewolf Relay: Connected to Streamlabs Wide-Net"));
