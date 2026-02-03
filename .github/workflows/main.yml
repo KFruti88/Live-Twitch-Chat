@@ -15,12 +15,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
-          node-version: 20 # Using a modern stable Node version
+          node-version: 20
       - name: Install Modern Dependencies
-        # We are forcing the latest versions here to avoid those "deprecated" errors
-        run: npm install tmi.js@latest socket.io-client@latest puppeteer@latest puppeteer-extra@latest puppeteer-extra-plugin-stealth@latest tiktok-live-connector@latest
+        run: |
+          npm install tmi.js@latest puppeteer@latest puppeteer-extra@latest puppeteer-extra-plugin-stealth@latest tiktok-live-connector@latest
       - name: Start Relay
         env:
-          STREAMLABS_TOKEN: ${{ secrets.STREAMLABS_TOKEN }}
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
         run: timeout 21600s node relay.js
