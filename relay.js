@@ -6,11 +6,15 @@ const app = express();
 
 app.use(express.json());
 
-// --- CONFIG ---
+// --- CONFIG FROM GITHUB SECRETS ---
 const CHAT_CHANNEL = 'werewolf3788'; 
 const TWITCH_TOKEN = process.env.TWITCH_ACCESS_TOKEN;
+const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
+const BROADCASTER_ID = process.env.TWITCH_BROADCASTER_ID || '896952944';
+const WP_RELAY_URL = process.env.WP_RELAY_URL;
 const TT_USER = 'k082412';
-// Your Discord Webhook URL
+
+// Your Discord Webhook URL (Hardcoded as requested)
 const DISCORD_URL = "https://discord.com/api/webhooks/1412973382433247252/fFwKe5xeW-S6VgWaPionj0A-ieKu3h_qFLaDZBl2JKobFispq0fBg_5_y8n1cWHwlGpY";
 
 const messageCache = new Set();
@@ -21,6 +25,28 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
+/**
+ * Sends data to your WordPress site so it can handle Discord mirror and Status
+ */
+async function forwardToWordPress(platform, user, message) {
+    if (!WP_RELAY_URL) return;
+    try {
+        await axios.post(WP_RELAY_URL, {
+            platform: platform,
+            username: user,
+            message: message
+        }, {
+            headers: {
+                'X-Twitch-Client-ID': TWITCH_CLIENT_ID,
+                'X-Twitch-Token': TWITCH_TOKEN,
+                'Content-Type': 'application/json'
+            }
+        });
+    } catch (err) {
+        console.log(`> WP Relay failed: ${err.message}`);
+    }
+}
+
 // Improved Discord Sender
 async function sendToDiscord(platform, user, message) {
     if (!DISCORD_URL) return;
@@ -29,25 +55,27 @@ async function sendToDiscord(platform, user, message) {
             content: `**[${platform}]** \`${user}\`: ${message}`
         });
     } catch (err) {
-        // Silently log failure to keep the console clean
         console.log(`> Discord mirror failed for ${platform}`);
     }
 }
 
-// 1. TikTok Logic (Direct API)
+// 1. TikTok Logic
 const tiktok = new WebcastPushConnection(TT_USER);
 tiktok.on('chat', data => {
     const key = `TT:${data.uniqueId}:${data.comment}`;
     if (messageCache.has(key)) return;
     
-    client.say(CHAT_CHANNEL, `[TT] ${data.uniqueId}: ${data.comment}`);
+    const relayText = `[TT] ${data.uniqueId}: ${data.comment}`;
+    client.say(CHAT_CHANNEL, relayText);
+    
     sendToDiscord('TikTok', data.uniqueId, data.comment);
+    forwardToWordPress('TikTok', data.uniqueId, data.comment);
     
     messageCache.add(key);
     cleanCache(key);
 });
 
-// 2. Multi-Platform Bridge (YouTube, Trovo, etc. via StreamElements)
+// 2. Multi-Platform Bridge (YouTube, Trovo, etc.)
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     let tag = service ? service.toUpperCase() : "STREAM";
@@ -59,6 +87,7 @@ app.post('/api/bridge', (req, res) => {
         
         client.say(CHAT_CHANNEL, finalMessage);
         sendToDiscord(tag, user, text);
+        forwardToWordPress(tag, user, text);
         
         messageCache.add(key);
         cleanCache(key);
