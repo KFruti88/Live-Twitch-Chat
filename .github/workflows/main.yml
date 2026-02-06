@@ -1,26 +1,39 @@
 name: Werewolf All-In-One Relay
+
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *' # Restarts every 6 hours automatically
+  workflow_dispatch:      # Allows you to start it manually from the Actions tab
 
 jobs:
   relay:
     runs-on: ubuntu-latest
     concurrency:
       group: relay-group
-      cancel-in-progress: true
+      cancel-in-progress: true # Prevents two bots from running at once if you push updates
+    
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
+
       - name: Install Dependencies
-        # This is the fix: telling GitHub exactly what modules to fetch
-        run: npm install tmi.js tiktok-live-connector express axios
-      - name: Start Relay
+        run: |
+          npm install tmi.js tiktok-live-connector express axios
+
+      - name: Start Relay Bot
         env:
+          # Mapping all your Repository Secrets
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
-          # If you haven't added the Discord URL to Secrets, I've hardcoded it in relay.js for now
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_BROADCASTER_ID: ${{ secrets.TWITCH_BROADCASTER_ID }}
+          WP_RELAY_URL: ${{ secrets.WP_RELAY_URL }}
+          PORT: 3000
+        # Timeout at 6 hours (21600s) to stay within GitHub's free-tier limits
         run: timeout 21600s node relay.js
