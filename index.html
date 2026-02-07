@@ -1,13 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>Werewolf Chat Relay Overlay</title>
+    
     <style>
         @import url(https://fonts.googleapis.com/css?family=Roboto:700);
         * { box-sizing: border-box; }
-        html, body { height: 100%; overflow: hidden; background: transparent; }
+        html, body { height: 100%; overflow: hidden; background: #1a1a1b; } /* Changed to dark background for visibility on GitHub */
         body {
             text-shadow: 0 0 1px #000, 0 0 2px #000;
-            font-family: 'Roboto';
+            font-family: 'Roboto', sans-serif;
             font-weight: 700;
             font-size: 24px;
             line-height: 1.5em;
@@ -19,10 +25,10 @@
             bottom: 0;
             left: 0;
             padding: 0 10px 10px;
-            width: 90%;
+            width: 90%; /* Standard 90% width */
             table-layout: fixed;
         }
-        #log>div {
+        #log > div {
             display: table-row;
             animation: fadeInRight .3s ease forwards, fadeOut 0.5s ease 15s forwards;
         }
@@ -40,6 +46,7 @@
             overflow: hidden;
         }
         #log .message { word-wrap: break-word; width: 65%; }
+        
         @keyframes fadeInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
     </style>
@@ -61,12 +68,14 @@
 
 <script>
     const CHAT_CHANNEL = "werewolf3788";
-    // You will need a Twitch Auth Token for the overlay to "speak" in chat
-    // Get one at https://twitchapps.com/tmi/
-    const AUTH_TOKEN = "oauth:your_token_here"; 
+
+    // Initialize ComfyJS
+    // NOTE: When viewing via GitHub URL, this is Read-Only unless you provide a token in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token'); 
 
     ComfyJS.onChat = (user, message, flags, self, extra) => {
-        if (self) return; // Prevent loops
+        if (self) return; 
 
         const log = document.getElementById('log');
         const template = document.getElementById('chatlist_item').innerHTML;
@@ -80,14 +89,15 @@
         div.innerHTML = html;
         log.appendChild(div.firstElementChild);
 
-        // AUTO-RELAY: This pushes the message back to Twitch if needed
-        // (Usually used if you're receiving YouTube/Restream messages here)
-        if (extra.custom) {
-            ComfyJS.Say(CHAT_CHANNEL, `[Relay] ${user}: ${message}`);
+        // Keep only last 10 messages for performance
+        if (log.children.length > 10) {
+            log.removeChild(log.firstChild);
         }
     };
 
-    ComfyJS.Init(CHAT_CHANNEL, AUTH_TOKEN);
+    // If no token is provided, it connects in Read-Only mode (perfect for viewing)
+    ComfyJS.Init(CHAT_CHANNEL, token);
+    console.log(`📡 Monitoring Twitch Chat for: ${CHAT_CHANNEL}`);
 </script>
 </body>
 </html>
