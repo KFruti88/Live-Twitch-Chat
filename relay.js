@@ -1,9 +1,9 @@
-// ==========================================
-// WEREWOLF MULTI-STREAM RELAY ENGINE
-// ==========================================
-// Standard: Full Code Mandate - Kevin & Scott
-// Updated: 2026-02-06
-// Features: Twitch/TikTok Relay + Discord Remote Control + Security Check
+/* ==========================================================================
+   WEREWOLF MULTI-STREAM RELAY ENGINE
+   Standard: Full Code Mandate - Kevin & Scott
+   Updated: 2026-02-07 (Unified TikTok + YouTube + Trovo + Discord)
+   Features: Unified 4-Platform Relay + PlayStation Chat Sync + Heartbeat
+   ========================================================================== */
 
 const tmi = require('tmi.js');
 const axios = require('axios');
@@ -20,12 +20,12 @@ const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const TT_USER = 'k082412';
 
 // --- THE PACK (AUTHORIZED IDs) ---
-// PASTE YOUR NUMERIC ID HERE. If you leave this empty [], anyone can use !send
 const authorizedUsers = ['1136876505142677504']; 
 
 const app = express();
 app.use(express.json());
 
+// --- TWITCH CLIENT SETUP ---
 const client = new tmi.Client({
     identity: { 
         username: CHAT_CHANNEL, 
@@ -34,9 +34,17 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
+// --- DISCORD BOT SETUP ---
 const discordBot = new Client({ 
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
+
+// --- HEARTBEAT ENGINE ---
+// Keeps GitHub Actions alive and logs status every 60 seconds.
+setInterval(() => {
+    const timestamp = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
+    console.log(`💓 [${timestamp} EST] Relay Active: Monitoring Twitch, TikTok, YouTube, & Trovo...`);
+}, 60000);
 
 async function sendToDiscord(user, platform, message) {
     try {
@@ -44,75 +52,81 @@ async function sendToDiscord(user, platform, message) {
     } catch (err) { console.log(`❌ Discord Mirror Failed`); }
 }
 
-// --- DISCORD COMMAND LISTENER (!send) ---
-discordBot.on('messageCreate', async (message) => {
-    if (message.author.bot) return; 
-
-    // DEBUG: Logs what the bot hears to the GitHub Action console
-    console.log(`🔍 [Discord Debug] ${message.author.username} sent: "${message.content}"`);
+// --- 📺 YOUTUBE & TROVO BRIDGE ENDPOINT ---
+/**
+ * Aligned to your StreamElements JavaScript:
+ * Expects: { user: "Name", text: "Message", service: "YouTube/Trovo" }
+ */
+app.post('/api/bridge', (req, res) => {
+    const { user, text, service } = req.body;
     
-    if (message.content.startsWith('!send ')) {
-        // SECURITY: If the list isn't empty, only allow IDs in the list
-        if (authorizedUsers.length > 0 && !authorizedUsers.includes(message.author.id)) {
-            console.log(`🚫 Security: Ignored !send from unauthorized user: ${message.author.username}`);
-            return;
-        }
+    if (!user || !text) return res.status(400).send("Missing Data");
 
-        const relayMessage = message.content.replace('!send ', '');
-        
-        // Push message to Twitch so you see it on the PlayStation
-        client.say(CHAT_CHANNEL, `[Discord] ${message.author.username}: ${relayMessage}`);
-        console.log(`📡 SUCCESS: Relayed "${relayMessage}" to Twitch`);
-        message.react('🐺'); 
-    }
+    console.log(`📡 [${service}] ${user}: ${text}`);
+    
+    // Relay to Twitch Chat (Displays on PlayStation screen)
+    client.say(CHAT_CHANNEL, `[${service}] ${user}: ${text}`);
+    
+    // Relay to Discord Mirror
+    sendToDiscord(user, service, text);
+    
+    res.status(200).send("Relayed to Twitch");
 });
 
-// --- TWITCH CHAT LISTENER ---
+// --- 🐺 DISCORD REMOTE CONTROL (!send) ---
+discordBot.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.content.startsWith('!send ')) return;
+    
+    // Security check for authorized users
+    if (authorizedUsers.length > 0 && !authorizedUsers.includes(message.author.id)) {
+        console.log(`🚫 Unauthorized !send attempt by: ${message.author.username}`);
+        return;
+    }
+
+    const relayMessage = message.content.replace('!send ', '');
+    client.say(CHAT_CHANNEL, `[Discord] ${message.author.username}: ${relayMessage}`);
+    console.log(`📡 SUCCESS: Relayed Discord message to Twitch`);
+    message.react('🐺'); 
+});
+
+// --- 🎵 TIKTOK LIVE ENGINE (Hardened Loop) ---
+const tiktok = new WebcastPushConnection(TT_USER);
+
+function startTikTok() {
+    tiktok.connect().then(state => {
+        console.log(`✅ Connected to TikTok Room: ${state.roomId}`);
+    }).catch(err => {
+        console.log("ℹ️ TikTok Offline: Checking again in 2 minutes...");
+        setTimeout(startTikTok, 120000); 
+    });
+}
+
+tiktok.on('chat', data => {
+    console.log(`🎵 [TikTok] ${data.uniqueId}: ${data.comment}`);
+    client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
+    sendToDiscord(data.uniqueId, 'TikTok', data.comment);
+});
+
+// --- TWITCH NATIVE LISTENER ---
+// Mirrors your own Twitch chat back to Discord
 client.on('message', (channel, tags, message, self) => {
     if (self) return; 
     sendToDiscord(tags['display-name'] || tags.username, 'Twitch', message);
 });
 
-// --- SHOUTOUT LOGIC ---
-async function checkFriendStreams() {
-    const userLogins = ['terrdog420', 'mjolnirgaming', 'raymystro'].join('&user_login=');
-    try {
-        const response = await axios.get(`https://api.twitch.tv/helix/streams?user_login=${userLogins}`, {
-            headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${TWITCH_TOKEN.replace('oauth:', '')}` }
-        });
-        const liveStreams = response.data.data || [];
-        liveStreams.forEach(stream => {
-            // Future logic for friend alerts can go here
-        });
-    } catch (err) { console.log(`> Shoutout failed`); }
-}
-
-// --- STARTUP SEQUENCE ---
+// --- 🚀 STARTUP SEQUENCE ---
 client.connect().then(() => {
-    console.log("🚀 Twitch Connected Successfully.");
+    console.log("🚀 Twitch Bridge: ONLINE.");
     
     if (DISCORD_BOT_TOKEN) {
         discordBot.login(DISCORD_BOT_TOKEN)
-            .then(() => console.log("🐺 Discord Remote Control ACTIVE."))
-            .catch(() => console.log("Discord Token Error. Check GitHub Secrets."));
+            .then(() => console.log("🐺 Discord Remote Control: ACTIVE."))
+            .catch(() => console.log("⚠️ Discord Token Error."));
     }
     
-    try {
-        const tiktok = new WebcastPushConnection(TT_USER);
-        tiktok.connect().catch(() => console.log("TikTok Waiting (Go Live to connect)"));
-        tiktok.on('chat', data => {
-            sendToDiscord(data.uniqueId, 'TikTok', data.comment);
-            client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
-        });
-    } catch (e) { console.log("TikTok initialization skipped."); }
+    startTikTok();
 
-    setInterval(checkFriendStreams, 300000);
-    app.listen(process.env.PORT || 3000, () => console.log(`✅ Bridge active`));
-}).catch(err => console.error(err));
-
-// --- BRIDGE ENDPOINT ---
-app.post('/api/bridge', (req, res) => {
-    client.say(CHAT_CHANNEL, `[${req.body.platform}] ${req.body.username}: ${req.body.message}`);
-    sendToDiscord(req.body.username, req.body.platform, req.body.message);
-    res.status(200).send("Relayed");
-});
+    app.listen(process.env.PORT || 3000, () => {
+        console.log(`✅ Bridge active and listening on port ${process.env.PORT || 3000}`);
+    });
+}).catch(err => console.error("🛑 Master Relay Failed to Start:", err));
