@@ -4,9 +4,9 @@ on:
   push:
     branches: [ main ]
   schedule:
-    # Restarts every 6 hours to keep the relay fresh
+    # Restarts every 6 hours automatically to keep the connection fresh
     - cron: '0 */6 * * *' 
-  workflow_dispatch:      # Allows you to start it manually from the Actions tab
+  workflow_dispatch:      # Allows manual start from the Actions tab
 
 jobs:
   relay:
@@ -25,7 +25,7 @@ jobs:
           node-version: '20'
 
       - name: Install Dependencies
-        # Must include discord.js for the !send command to work
+        # FIXED: Added discord.js to this list so the bot can "hear" Mark's commands
         run: |
           npm install tmi.js tiktok-live-connector express axios discord.js
 
@@ -36,9 +36,8 @@ jobs:
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          # Keeping these for future expansion
           TWITCH_BROADCASTER_ID: ${{ secrets.TWITCH_BROADCASTER_ID }}
           WP_RELAY_URL: ${{ secrets.WP_RELAY_URL }}
           PORT: 3000
-        # Runs for 6 hours (21600s) then restarts via the cron job
+        # Timeout at 6 hours (21600s) to fit GitHub free limits
         run: timeout 21600s node relay.js
