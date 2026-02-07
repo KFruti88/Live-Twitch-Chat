@@ -1,0 +1,54 @@
+@import url(https://fonts.googleapis.com/css?family=Roboto:700,900);
+
+* { box-sizing: border-box; }
+
+html, body { 
+    height: 100%; width: 100%; margin: 0; padding: 0; 
+    overflow: hidden; background: transparent; 
+    font-family: 'Roboto', sans-serif; 
+}
+
+/* Tribute Bar */
+#tribute-bar {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 20px;
+    background: linear-gradient(180deg, rgba(30,30,30,0.98) 0%, rgba(0,0,0,0.95) 100%); 
+    padding: 12px 40px; border-bottom: 4px solid #FFD700; border-radius: 0 0 20px 20px;
+    color: white; z-index: 1000; box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+#tribute-bar img { height: 20px; }
+#tribute-bar span { letter-spacing: 2px; font-weight: 900; }
+
+/* HUD */
+.top-right-hub { position: absolute; top: 20px; right: 40px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; z-index: 100; }
+.info-pill { background: rgba(0,0,0,0.85); border-right: 6px solid #FF5F1F; padding: 8px 22px; color: white; font-weight: 900; border-radius: 4px; display: flex; align-items: center; gap: 15px; }
+.qr-box { background: white; padding: 4px; border-radius: 4px; }
+
+/* Trophy Panel */
+#trophy-panel {
+    position: absolute; right: 40px; top: 180px; 
+    display: flex; flex-direction: column; gap: 6px; z-index: 100;
+}
+.tracker-box {
+    background: rgba(0,0,0,0.85); border: 1px solid #FF5F1F; 
+    padding: 5px 12px; border-radius: 4px; 
+    display: flex; align-items: center; gap: 12px; min-width: 120px;
+}
+.tracker-box .emoji { font-size: 20px; }
+.tracker-box .count-val { font-size: 18px; color: white; font-weight: 900; }
+.tracker-box .count-lbl { font-size: 9px; color: #00d2ff; text-transform: uppercase; }
+
+/* Footer */
+.brand-footer { position: absolute; bottom: 30px; right: 40px; display: flex; align-items: center; gap: 20px; z-index: 100; }
+.text-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; width: 400px; }
+#shoutout-display { background: rgba(0,0,0,0.8); border-left: 4px solid #FF5F1F; padding: 10px 15px; color: white; font-size: 14px; text-align: center; border-radius: 4px; width: 100%; font-weight: 700; }
+#game-name-display { font-size: 26px; font-weight: 900; color: white; text-transform: uppercase; text-shadow: 0 0 10px #000; }
+.main-logo { height: 110px; width: 110px; border-radius: 50%; border: 4px solid #FF5F1F; background: #000; filter: drop-shadow(0 0 12px #FF5F1F); }
+
+/* Chat */
+#log { position: absolute; bottom: 30px; left: 40px; width: 400px; display: flex; flex-direction: column-reverse; gap: 5px; z-index: 100; }
+.chat-row { display: flex; animation: fadeIn 0.4s ease-out forwards; }
+.chat-meta { width: 120px; text-align: right; padding: 8px 10px; background: rgba(0,0,0,0.7); border-left: 4px solid #FF5F1F; color: white; font-weight: 900; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-message { flex: 1; padding: 8px 10px; background: rgba(0,0,0,0.5); color: white; font-weight: 700; font-size: 14px; word-wrap: break-word; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
