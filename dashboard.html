@@ -3,28 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <title>Werewolf Relay Engine</title>
+    <title>Werewolf Relay & TTS Engine</title>
     <style>
         body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 50px; }
-        .box { border: 1px solid #0f0; display: inline-block; padding: 20px; }
-        iframe { width: 1px; height: 1px; opacity: 0; position: absolute; } /* Hidden but active */
+        .box { border: 1px solid #0f0; display: inline-block; padding: 20px; min-width: 300px; }
+        .status { margin-top: 15px; padding: 10px; border: 1px solid #444; background: #111; }
+        .btn { background: #0f0; color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn.muted { background: #f00; color: #fff; }
+        iframe { width: 1px; height: 1px; opacity: 0; position: absolute; }
     </style>
 </head>
 <body>
     <div class="box">
         <h2>WEREWOLF RELAY ACTIVE</h2>
         <p id="timer">Last Ping: Initializing...</p>
-        <p>This page bridges YouTube & Trovo to Twitch.</p>
+        
+        <div class="status">
+            <p id="tts-status">TTS Status: 🔇 Waiting for User Click</p>
+            <button id="mute-btn" class="btn" onclick="toggleMute()">ENABLE TTS AUDIO</button>
+        </div>
+
+        <p style="font-size: 0.8em; margin-top: 20px;">Relaying YouTube & Trovo to Twitch</p>
     </div>
 
     <iframe src="https://streamelements.com/overlay/696f68e8e7350cdd40e3269b/KTFKmzX0VHX8TUV3j6yfi-EtANpp-gHtaun_-mAbJrUlv4vw"></iframe>
     <iframe src="https://streamelements.com/overlay/68da525aa6993cfb4800e3f2/x9c-PRU_AtEpBHR9SI557BDnuB78zVMaJsLT-0KqWKcXoyKy"></iframe>
 
     <script>
-        // Updates the time so you (and Cron-job) know it's working
+        let isMuted = true;
+        let speechQueue = [];
+        let isSpeaking = false;
+
+        // Update timer for Cron-job monitoring
         document.getElementById('timer').innerText = "Last Ping: " + new Date().toLocaleTimeString();
-        
-        // Auto-refresh the page every 15 minutes as a fallback
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('mute-btn');
+            const status = document.getElementById('tts-status');
+            
+            if (isMuted) {
+                btn.innerText = "ENABLE TTS AUDIO";
+                btn.classList.remove('muted');
+                status.innerText = "TTS Status: 🔇 Muted";
+                window.speechSynthesis.cancel(); // Stop current speech
+            } else {
+                btn.innerText = "MUTE TTS AUDIO";
+                btn.classList.add('muted');
+                status.innerText = "TTS Status: 🔊 Active";
+                // Chrome requires a dummy speech to "unlock" audio
+                const unlock = new SpeechSynthesisUtterance("Audio unlocked");
+                unlock.volume = 0;
+                window.speechSynthesis.speak(unlock);
+            }
+        }
+
+        function speakMessage(user, text, platform) {
+            if (isMuted) return;
+
+            const speech = new SpeechSynthesisUtterance();
+            speech.text = `${user} says: ${text}`;
+            speech.volume = 1;
+            speech.rate = 1;
+            
+            // Queue management to prevent overlapping
+            speech.onend = () => {
+                isSpeaking = false;
+                processQueue();
+            };
+
+            speechQueue.push(speech);
+            processQueue();
+        }
+
+        function processQueue() {
+            if (isSpeaking || speechQueue.length === 0) return;
+            isSpeaking = true;
+            const nextSpeech = speechQueue.shift();
+            window.speechSynthesis.speak(nextSpeech);
+        }
+
+        // Listen for messages from the StreamElements iframes
+        window.addEventListener('message', (event) => {
+            // Check if the message is coming from a StreamElements widget
+            if (event.data && event.data.type === 'chatMessage') {
+                const { user, text, service } = event.data;
+                speakMessage(user, text, service || 'Stream');
+            }
+        });
+
+        // Auto-refresh every 15 mins
         setTimeout(() => { location.reload(); }, 900000);
     </script>
 </body>
