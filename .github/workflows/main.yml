@@ -1,3 +1,10 @@
+# ==========================================
+# WEREWOLF ALL-IN-ONE RELAY WORKFLOW
+# Standard: Full Code Mandate - Kevin & Scott
+# Updated: 2026-02-07
+# Targets: Twitch, TikTok, YouTube, Trovo, Discord
+# ==========================================
+
 name: Werewolf All-In-One Relay
 
 on:
@@ -25,13 +32,13 @@ jobs:
           node-version: '20'
 
       - name: Install Dependencies
-        # FIXED: Added discord.js to this list so the bot can "hear" Mark's commands
+        # Ensuring all required libraries for TikTok, Twitch, and Discord are present
         run: |
           npm install tmi.js tiktok-live-connector express axios discord.js
 
       - name: Start Relay Bot
         env:
-          # Mapping your GitHub Secrets to the bot
+          # Mapping your GitHub Secrets to the bot for secure access
           TWITCH_OAUTH: ${{ secrets.TWITCH_ACCESS_TOKEN }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -39,5 +46,6 @@ jobs:
           TWITCH_BROADCASTER_ID: ${{ secrets.TWITCH_BROADCASTER_ID }}
           WP_RELAY_URL: ${{ secrets.WP_RELAY_URL }}
           PORT: 3000
-        # Timeout at 6 hours (21600s) to fit GitHub free limits
+        # FIXED: Optimized timeout to 6 hours (21600s) to maximize runtime.
+        # This executes relay.js which now contains the Heartbeat Engine to prevent early cancellation.
         run: timeout 21600s node relay.js
