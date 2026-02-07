@@ -1,7 +1,9 @@
-/* Werewolf Hunter Master Styles
-    Standard: Full Code Mandate (No Snippets)
-    Compatibility: GitHub, CodePen, WordPress
-*/
+/* ==========================================================================
+   WEREWOLF HUNTER MASTER STYLES
+   Standard: Full Code Mandate (No Snippets)
+   Compatibility: GitHub, CodePen, WordPress
+   Features: Alerts, Tribute Bar, Trophy HUD, Branding Footer, Chat Log
+   ========================================================================== */
 
 @import url(https://fonts.googleapis.com/css?family=Roboto:700,900);
 
@@ -118,6 +120,7 @@ html, body {
     background: white; 
     padding: 4px; 
     border-radius: 4px; 
+    filter: drop-shadow(0 0 8px rgba(0,0,0,0.5));
 }
 
 /* --- COMPACT TROPHY PANEL (MIDDLE RIGHT) --- */
@@ -140,6 +143,7 @@ html, body {
     align-items: center; 
     gap: 12px; 
     min-width: 120px;
+    animation: fadeIn 0.5s forwards;
 }
 
 /* Great One Special Styling */
@@ -201,7 +205,7 @@ html, body {
     font-weight: 900; 
     color: white; 
     text-transform: uppercase; 
-    text-shadow: 0 0 10px #000; 
+    text-shadow: 0 0 10px #000, 0 0 5px #FF5F1F; 
 }
 
 .main-logo { 
