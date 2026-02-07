@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Werewolf Relay Engine</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 50px; }
+        .box { border: 1px solid #0f0; display: inline-block; padding: 20px; }
+        iframe { width: 1px; height: 1px; opacity: 0; position: absolute; } /* Hidden but active */
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>WEREWOLF RELAY ACTIVE</h2>
+        <p id="timer">Last Ping: Initializing...</p>
+        <p>This page bridges YouTube & Trovo to Twitch.</p>
+    </div>
+
+    <iframe src="https://streamelements.com/overlay/696f68e8e7350cdd40e3269b/KTFKmzX0VHX8TUV3j6yfi-EtANpp-gHtaun_-mAbJrUlv4vw"></iframe>
+    <iframe src="https://streamelements.com/overlay/68da525aa6993cfb4800e3f2/x9c-PRU_AtEpBHR9SI557BDnuB78zVMaJsLT-0KqWKcXoyKy"></iframe>
+
+    <script>
+        // Updates the time so you (and Cron-job) know it's working
+        document.getElementById('timer').innerText = "Last Ping: " + new Date().toLocaleTimeString();
+        
+        // Auto-refresh the page every 15 minutes as a fallback
+        setTimeout(() => { location.reload(); }, 900000);
+    </script>
+</body>
+</html>
