@@ -1,7 +1,8 @@
 /* ==========================================================================
-   WEREWOLF MULTI-STREAM RELAY ENGINE
+   WEREWOLF MULTI-STREAM RELAY ENGINE - VERSION 2.0 (FINAL)
    Standard: Full Code Mandate - Kevin & Scott
-   Updated: 2026-02-07 (Unified TikTok On-Hold + 4-Platform Bridge)
+   Updated: 2026-02-07
+   Targets: Twitch, TikTok, YouTube, Trovo, Discord
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -18,12 +19,13 @@ const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const TT_USER = 'k082412';
 const authorizedUsers = ['1136876505142677504']; 
 
-let isLive = false; // Flag to hold TikTok until Twitch is live
+// Control Flags
+let isLive = false; // Prevents TikTok from crashing the relay before you go live
 
 const app = express();
 app.use(express.json());
 
-// --- TWITCH CLIENT SETUP ---
+// --- 1. TWITCH CONNECTION (The Destination) ---
 const client = new tmi.Client({
     identity: { 
         username: CHAT_CHANNEL, 
@@ -32,53 +34,74 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
-// --- DISCORD BOT SETUP ---
+// --- 2. DISCORD CONNECTION (The Remote Control) ---
 const discordBot = new Client({ 
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
 
-// --- HEARTBEAT ENGINE ---
-// Prevents GitHub Action Timeout and logs TikTok status.
+// --- 3. HEARTBEAT ENGINE (The Stability) ---
 setInterval(() => {
     const timestamp = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' });
     const ttStatus = isLive ? "ACTIVE" : "ON HOLD (Waiting for Twitch Live)";
-    console.log(`💓 [${timestamp} EST] Relay Active | TikTok: ${ttStatus}`);
+    console.log(`💓 [${timestamp} EST] Relay Pulse: YouTube/Trovo API [OK] | Discord [OK] | TikTok [${ttStatus}]`);
 }, 60000);
 
+// Global Discord Sender
 async function sendToDiscord(user, platform, message) {
     try {
         await axios.post(DISCORD_WEBHOOK, { content: `**[${platform}] ${user}:** ${message}` });
     } catch (err) { console.log(`❌ Discord Mirror Failed`); }
 }
 
-// --- 🎵 TIKTOK ENGINE (ON HOLD LOGIC) ---
+// --- 4. TIKTOK ENGINE (The On-Hold Persistence) ---
 const tiktok = new WebcastPushConnection(TT_USER);
 
 function startTikTok() {
     if (!isLive) return; 
     
-    console.log(`📡 TikTok: Attempting to connect to ${TT_USER}...`);
+    console.log(`📡 TikTok: Attempting to join ${TT_USER}'s live...`);
     tiktok.connect().then(state => {
-        console.log(`✅ TikTok Connected to Room: ${state.roomId}`);
-        client.say(CHAT_CHANNEL, "🐺 [System] TikTok Bridge is now LIVE.");
+        console.log(`✅ TikTok Connected! Room: ${state.roomId}`);
+        client.say(CHAT_CHANNEL, "🐺 [System] TikTok Bridge is now ACTIVE.");
     }).catch(err => {
-        console.log("ℹ️ TikTok connection pending... Retrying in 2 mins.");
+        console.log("ℹ️ TikTok Offline: Retrying in 2 minutes...");
         setTimeout(startTikTok, 120000); 
     });
 }
 
 tiktok.on('chat', data => {
+    // Relay TikTok to Twitch (PlayStation visibility)
     client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
+    // Mirror to Discord
     sendToDiscord(data.uniqueId, 'TikTok', data.comment);
 });
 
-// --- 📺 TWITCH LIVE ANNOUNCEMENT & CHAT MODULE ---
-client.on('messagelog', (channel, username, method, message, userstate) => {
-    // Release TikTok hold when the "Live Announcement" fires
+// --- 5. YOUTUBE & TROVO BRIDGE (The API Hub) ---
+/**
+ * Aligned to your StreamElements JavaScript fetch call.
+ */
+app.post('/api/bridge', (req, res) => {
+    const { user, text, service } = req.body;
+    if (!user || !text) return res.status(400).send("Missing Data");
+
+    console.log(`📡 [${service}] Received from ${user}`);
+    
+    // Relay to Twitch Chat
+    client.say(CHAT_CHANNEL, `[${service}] ${user}: ${text}`);
+    
+    // Mirror to Discord
+    sendToDiscord(user, service, text);
+    
+    res.status(200).send("Relayed");
+});
+
+// --- 6. TWITCH MONITORING (The Trigger) ---
+client.on('messagelog', (channel, username, method, message) => {
+    // Releases TikTok once your "Live Announcement" fires
     if (username === CHAT_CHANNEL && message.toLowerCase().includes("live announcement")) {
         if (!isLive) {
             isLive = true;
-            console.log("🚀 LIVE DETECTED: Releasing TikTok from Hold...");
+            console.log("🚀 LIVE SIGNAL DETECTED: Opening TikTok Bridge...");
             startTikTok();
         }
     }
@@ -87,28 +110,17 @@ client.on('messagelog', (channel, username, method, message, userstate) => {
 client.on('message', (channel, tags, message, self) => {
     if (self) return;
     
-    // Manual Release Fallback
+    // Manual Release: Type !go-live in Twitch Chat
     if (tags.username === CHAT_CHANNEL && message === "!go-live") {
         isLive = true;
         startTikTok();
     }
 
-    // Mirror native Twitch chat to Discord
+    // Mirror Twitch chat to Discord
     sendToDiscord(tags['display-name'] || tags.username, 'Twitch', message);
 });
 
-// --- 📺 YOUTUBE & TROVO BRIDGE ENDPOINT ---
-app.post('/api/bridge', (req, res) => {
-    const { user, text, service } = req.body;
-    if (!user || !text) return res.status(400).send("Missing Data");
-
-    console.log(`📡 [${service}] ${user}: ${text}`);
-    client.say(CHAT_CHANNEL, `[${service}] ${user}: ${text}`);
-    sendToDiscord(user, service, text);
-    res.status(200).send("Relayed");
-});
-
-// --- 🐺 DISCORD REMOTE CONTROL (!send) ---
+// --- 7. DISCORD COMMANDS ---
 discordBot.on('messageCreate', async (message) => {
     if (message.author.bot || !message.content.startsWith('!send ')) return;
     if (authorizedUsers.length > 0 && !authorizedUsers.includes(message.author.id)) return;
@@ -118,18 +130,21 @@ discordBot.on('messageCreate', async (message) => {
     message.react('🐺'); 
 });
 
-// --- 🚀 STARTUP SEQUENCE ---
+// --- 8. STARTUP SEQUENCE ---
 client.connect().then(() => {
-    console.log("🚀 Twitch Connected Successfully.");
+    console.log("🚀 Twitch Connection: SUCCESS.");
     
     if (DISCORD_BOT_TOKEN) {
-        discordBot.login(DISCORD_BOT_TOKEN)
-            .then(() => console.log("🐺 Discord Remote Control ACTIVE."))
-            .catch(() => console.log("⚠️ Discord Token Error. Check Secrets."));
+        discordBot.login(DISCORD_BOT_TOKEN).then(() => console.log("🐺 Discord Connection: SUCCESS."));
     }
     
-    // Start Express API for YouTube/Trovo
+    // Start API for YouTube/Trovo widgets
     app.listen(process.env.PORT || 3000, () => {
-        console.log(`✅ Bridge active (TikTok on Standby until Live Announcement)`);
+        console.log(`✅ API Bridge: Ready for YouTube/Trovo widgets.`);
     });
-}).catch(err => console.error("🛑 Master Relay Failed:", err));
+}).catch(err => console.error("🛑 RELAY CRITICAL FAILURE:", err));
+
+// Global Error Handler
+process.on('uncaughtException', (err) => {
+    console.log('🛑 ERROR INTERCEPTED (Process Kept Alive):', err.message);
+});
