@@ -3,24 +3,25 @@
 // ==========================================
 // Standard: Full Code Mandate - Kevin & Scott
 // Updated: 2026-02-06
-// Fixes: Integrated full chat mirroring for Twitch, TikTok, and Discord logs.
+// Features: Twitch/TikTok Relay + Discord Remote Control
 
 const tmi = require('tmi.js');
 const axios = require('axios');
 const express = require('express');
 const { WebcastPushConnection } = require('tiktok-live-connector');
+const { Client, GatewayIntentBits } = require('discord.js'); // Discord Bot Integration
 
 // --- CONFIG & SECRETS ---
 const CHAT_CHANNEL = 'werewolf3788';
 const TWITCH_TOKEN = process.env.TWITCH_OAUTH; 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN; 
 const TT_USER = 'k082412';
 
 // --- CRITICAL SECRET CHECK ---
-// Ensures bot stops safely if GitHub Secrets are missing
 if (!TWITCH_TOKEN || !TWITCH_CLIENT_ID || !DISCORD_WEBHOOK) {
-    console.error("❌ ERROR: One or more GitHub Secrets are MISSING.");
+    console.error("❌ ERROR: Missing GitHub Secrets (Check your Settings).");
     process.exit(1); 
 }
 
@@ -45,23 +46,43 @@ const client = new tmi.Client({
     channels: [CHAT_CHANNEL]
 });
 
+// --- DISCORD BOT SETUP (For Remote Control) ---
+const discordBot = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent 
+    ] 
+});
+
 // --- HELPER: DISCORD WEBHOOK ---
 async function sendToDiscord(user, platform, message) {
     try {
         await axios.post(DISCORD_WEBHOOK, {
             content: `**[${platform}] ${user}:** ${message}`
         });
-    } catch (err) { 
-        console.log(`❌ Discord Mirror Failed: ${err.response?.data?.message || err.message}`); 
-    }
+    } catch (err) { console.log(`❌ Discord Mirror Failed`); }
 }
 
+// --- DISCORD COMMAND LISTENER (!send) ---
+// This allows Mark or moderators to talk to your Twitch from Discord
+discordBot.on('messageCreate', async (message) => {
+    if (message.author.bot) return; 
+    
+    if (message.content.startsWith('!send ')) {
+        const relayMessage = message.content.replace('!send ', '');
+        const sender = message.author.username;
+        
+        // Push message to Twitch chat so it shows on PS5
+        client.say(CHAT_CHANNEL, `[Discord] ${sender}: ${relayMessage}`);
+        message.react('🐺'); // Shows the team the message was sent
+    }
+});
+
 // --- TWITCH CHAT LISTENER ---
-// Listens to your Twitch chat and mirrors to Discord
 client.on('message', (channel, tags, message, self) => {
     if (self) return; 
     const user = tags['display-name'] || tags.username;
-    console.log(`💬 [Twitch] ${user}: ${message}`);
     sendToDiscord(user, 'Twitch', message);
 });
 
@@ -69,7 +90,6 @@ client.on('message', (channel, tags, message, self) => {
 async function checkFriendStreams() {
     const userLogins = friends.map(f => f.name).join('&user_login=');
     const url = `https://api.twitch.tv/helix/streams?user_login=${userLogins}`;
-
     try {
         const response = await axios.get(url, {
             headers: {
@@ -77,58 +97,47 @@ async function checkFriendStreams() {
                 'Authorization': `Bearer ${TWITCH_TOKEN.replace('oauth:', '')}`
             }
         });
-
         const liveStreams = response.data.data || [];
         const currentLiveLogins = liveStreams.map(s => s.user_login.toLowerCase());
-
         liveStreams.forEach(stream => {
             const login = stream.user_login.toLowerCase();
             if (!liveStates.get(login)) {
-                const msg = `📣 SHOUTOUT: My friend ${stream.user_name} is LIVE playing ${stream.game_name}! Go show love at https://twitch.tv/${login} 🐺`;
+                const msg = `📣 SHOUTOUT: ${stream.user_name} is LIVE! Go show love at twitch.tv/${login} 🐺`;
                 client.say(CHAT_CHANNEL, msg);
                 sendToDiscord('System', 'Shoutout', msg);
                 liveStates.set(login, true);
             }
         });
-
-        friends.forEach(f => {
-            if (!currentLiveLogins.includes(f.name.toLowerCase())) {
-                liveStates.set(f.name.toLowerCase(), false);
-            }
-        });
-    } catch (err) { console.log(`> Shoutout check failed: ${err.message}`); }
+        friends.forEach(f => { if (!currentLiveLogins.includes(f.name.toLowerCase())) liveStates.set(f.name.toLowerCase(), false); });
+    } catch (err) { console.log(`> Shoutout check failed`); }
 }
 
 // --- STARTUP SEQUENCE ---
 client.connect()
     .then(() => {
-        console.log("🚀 Twitch Connected Successfully.");
+        console.log("🚀 Twitch Connected.");
         client.say(CHAT_CHANNEL, "Werewolf Multi-Stream Relay is ONLINE. 🐺");
         
+        if (DISCORD_BOT_TOKEN) {
+            discordBot.login(DISCORD_BOT_TOKEN)
+                .then(() => console.log("🐺 Discord Remote Control ACTIVE."))
+                .catch(() => console.log("Discord Bot Token missing/invalid."));
+        }
+
         try {
             const tiktok = new WebcastPushConnection(TT_USER);
-            tiktok.connect()
-                .then(() => console.log(`📡 TikTok Bridge Active`))
-                .catch(() => console.log("TikTok Offline (Waiting for stream)"));
-                
-            // Listen for TikTok comments and relay to Twitch & Discord
+            tiktok.connect().catch(() => console.log("TikTok Waiting (Go Live to connect)"));
             tiktok.on('chat', data => {
                 sendToDiscord(data.uniqueId, 'TikTok', data.comment);
                 client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
             });
-        } catch (e) { console.log("TikTok initialization skipped."); }
+        } catch (e) { console.log("TikTok skipped."); }
 
-        // Monitor friends every 5 minutes
-        setInterval(checkFriendStreams, 300000);
-
-        const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => console.log(`✅ Bridge active on port ${PORT}`));
+        setInterval(checkFriendStreams, 300000); // Check friends every 5 mins
+        app.listen(process.env.PORT || 3000, () => console.log(`✅ Bridge active`));
     })
-    .catch((err) => {
-        console.error("❌ TWITCH LOGIN FAILED:", err);
-    });
+    .catch((err) => { console.error("❌ TWITCH LOGIN FAILED:", err); });
 
-// --- BRIDGE ENDPOINT (For YouTube/Footer Bridge) ---
 app.post('/api/bridge', (req, res) => {
     const { username, message, platform } = req.body;
     client.say(CHAT_CHANNEL, `[${platform}] ${username}: ${message}`);
