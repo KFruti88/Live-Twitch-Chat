@@ -1,218 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <title>Werewolf Interactive Chat Overlay</title>
-    
-    <style>
-        @import url(https://fonts.googleapis.com/css?family=Roboto:700);
-        
-        * { box-sizing: border-box; }
-        
-        /* Layout: Background transparent for OBS/Streamlabs */
-        html, body { 
-            height: 100%; 
-            padding: 0;
-            margin: 0;
-            overflow: hidden; 
-            background: transparent; 
-        } 
-        
-        body {
-            text-shadow: 0 0 1px #000, 0 0 2px #000;
-            font-family: 'Roboto', sans-serif;
-            font-weight: 700;
-            font-size: 24px;
-            line-height: 1.5em;
-            color: #ffffff;
-        }
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 
-        /* Container: Default 90% width mandate */
-        #log {
-            display: table;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            padding: 0 10px 10px;
-            width: 90%; 
-            table-layout: fixed;
-        }
+<div id="tribute-bar">
+    <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg">
+    <span>IN HONOR OF OLDMAN - FEB, 2025</span>
+    <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg">
+</div>
 
-        #log > div {
-            display: table-row;
-            animation: fadeInRight .3s ease forwards, fadeOut 0.5s ease 15s forwards;
-        }
+<div id="special-event-container"></div>
 
-        #log .message, #log .meta {
-            vertical-align: top;
-            display: table-cell;
-            padding-bottom: 0.1em;
-        }
+<div class="top-right-hub">
+    <div class="info-pill" id="theme-pill">
+        <span id="game-icon">🐺</span>
+        <span id="local-time">--:--</span>
+        <span>| EST</span>
+    </div>
+    <div class="qr-box">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=https://www.amazon.com/gp/goldbox?tag=werewolf3788-20">
+    </div>
+</div>
 
-        #log .meta {
-            width: 35%;
-            text-align: right;
-            padding-right: 0.5em;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
+<div id="trophy-panel">
+    <div class="tracker-box"><span class="emoji">💎</span><div><span id="dia-val" class="count-val">4</span><br><span class="count-lbl">Dia</span></div></div>
+    <div class="tracker-box"><span class="emoji">🥇</span><div><span id="gold-val" class="count-val">185</span><br><span class="count-lbl">Gold</span></div></div>
+    <div class="tracker-box"><span class="emoji">🥈</span><div><span id="silv-val" class="count-val">524</span><br><span class="count-lbl">Silv</span></div></div>
+    <div class="tracker-box"><span class="emoji">🥉</span><div><span id="bron-val" class="count-val">401</span><br><span class="count-lbl">Bron</span></div></div>
+</div>
 
-        #log .message { word-wrap: break-word; width: 65%; }
+<div class="brand-footer">
+    <div class="text-stack">
+        <div id="game-name-display">HUNTER: CALL OF THE WILD</div>
+        <div id="shoutout-display">Scan the QR code to support the Pack! 🐺</div>
+    </div>
+    <img src="https://werewolf.ourflora.com/wp-content/uploads/2025/12/image_2025-12-22_222907634.png" class="main-logo">
+</div>
 
-        /* --- UNICORN BUNNY ANIMATION STYLES --- */
-        #special-event-container {
-            position: absolute;
-            top: 20%; 
-            width: 100%;
-            height: 200px;
-            pointer-events: none;
-            overflow: hidden;
-        }
+<div id="log"></div>
 
-        .unicorn-bunny-fly {
-            position: absolute;
-            right: -200px; 
-            width: 150px;
-            height: auto;
-            animation: flyAcross 6s linear forwards;
-        }
-
-        @keyframes flyAcross {
-            from { right: -200px; }
-            to { right: 110%; } 
-        }
-        
-        @keyframes fadeInRight { 
-            from { opacity: 0; transform: translateX(20px); } 
-            to { opacity: 1; transform: translateX(0); } 
-        }
-        
-        @keyframes fadeOut { 
-            from { opacity: 1; } 
-            to { opacity: 0; } 
-        }
-    </style>
-</head>
-<body>
-
-    <div id="special-event-container"></div>
-
-    <div id="log" class="sl__chat__layout"></div>
-
-    <script type="text/template" id="chatlist_item">
-        <div data-from="{from}">
-            <span class="meta" style="color: {color}">
-                <span class="name">{from} {emoji}</span>
-            </span>
-            <span class="message">{message}</span>
-        </div>
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
-
-    <script>
-        const CHAT_CHANNEL = "werewolf3788";
-        const UNICORN_IMAGE = "https://raw.githubusercontent.com/KFruti88/Live-Twitch-Chat/main/unicornbunny.PNG";
-        
-        // Track if the bunny has already appeared this session
-        let bunnyHasTriggered = false;
-
-        /**
-         * Logic to calculate holiday emojis.
-         * Only returns an emoji if the current date matches the holiday.
-         */
-        function getHolidayEmoji() {
-            const now = new Date();
-            const month = now.getMonth() + 1; // 1-12
-            const date = now.getDate();
-            const year = now.getFullYear();
-
-            // Fixed Dates
-            if (month === 1 && date === 1) return "🎆";   // New Year
-            if (month === 2 && date === 14) return "💘";  // Valentine's
-            if (month === 3 && date === 17) return "🍀";  // St. Patrick's
-            if (month === 7 && date === 4) return "🇺🇸";   // July 4th
-            if (month === 7 && date === 18) return "🎂";  // Kevin's Birthday
-            if (month === 10 && date === 31) return "🎃"; // Halloween
-            if (month === 12 && date === 25) return "🎄"; // Christmas
-            if (month === 12 && date === 31) return "🥂"; // New Year's Eve
-
-            // Moving Holidays: Thanksgiving (4th Thursday of Nov)
-            if (month === 11) {
-                const firstDay = new Date(year, 10, 1).getDay();
-                const thanksgiving = 1 + (4 - firstDay + 7) % 7 + 21;
-                if (date === thanksgiving) return "🦃";
-            }
-
-            // Moving Holidays: Easter (Complex Calculation)
-            const f = Math.floor, G = year % 19, C = f(year / 100), H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
-                  I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)), J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
-                  L = I - J, m = 3 + f((L + 40) / 44), d = L + 28 - 31 * f(m / 4);
-            if (month === m && date === d) return "🐰";
-
-            return ""; // No holiday today
-        }
-
-        /**
-         * Triggers the Unicorn Bunny image animation across the screen.
-         */
-        function triggerUnicornBunny() {
-            if (bunnyHasTriggered) return; 
-            
-            const container = document.getElementById('special-event-container');
-            const img = document.createElement('img');
-            img.src = UNICORN_IMAGE;
-            img.className = 'unicorn-bunny-fly';
-            
-            container.appendChild(img);
-            bunnyHasTriggered = true; // Mark as triggered for the current session
-            
-            // Clean up the DOM after animation completes
-            setTimeout(() => {
-                img.remove();
-            }, 6000);
-        }
-
-        // Initialize connection
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token'); 
-
-        ComfyJS.onChat = (user, message, flags, self, extra) => {
-            if (self) return; 
-
-            // Trigger bunny only on the FIRST chat from unicornbunnyshiver
-            if (user.toLowerCase() === "unicornbunnyshiver" && !bunnyHasTriggered) {
-                triggerUnicornBunny();
-            }
-
-            const holidayEmoji = getHolidayEmoji();
-            const log = document.getElementById('log');
-            const template = document.getElementById('chatlist_item').innerHTML;
-
-            let html = template
-                .replace(/{from}/g, user)
-                .replace(/{color}/g, extra.userColor || "#fe4f00")
-                .replace(/{emoji}/g, holidayEmoji)
-                .replace(/{message}/g, message);
-
-            const div = document.createElement('div');
-            div.innerHTML = html;
-            log.appendChild(div.firstElementChild);
-
-            // Performance Management: Only keep the most recent 10 messages
-            if (log.children.length > 10) {
-                log.removeChild(log.firstChild);
-            }
-        };
-
-        // If no token is provided, connects in Read-Only mode
-        ComfyJS.Init(CHAT_CHANNEL, token);
-        console.log(`📡 Werewolf Interactive Overlay active for: ${CHAT_CHANNEL}`);
-    </script>
-</body>
-</html>
+<script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
