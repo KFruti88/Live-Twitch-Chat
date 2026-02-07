@@ -99,10 +99,14 @@ app.post('/api/bridge', (req, res) => {
 client.connect().then(() => {
     console.log("🚀 Twitch Connected.");
     
+    // --- AUTOMATED LIVE ANNOUNCEMENT ---
+    const liveMsg = "Werewolf is now LIVE! I am relaying chat from YouTube and Trovo here so I can see your messages while I play on PlayStation! 🐺";
+    client.say(CHAT_CHANNEL, liveMsg);
+    sendToDiscord('System', 'Bot', 'Relay Hub is now LIVE and announcement sent.');
+    
     tiktok.connect()
         .then(() => {
             console.log(`📡 Connected to TikTok: ${TT_USER}`);
-            sendToDiscord('System', 'Bot', 'Relay Hub is now LIVE.');
         })
         .catch(() => console.log("TikTok Connection Failed (Check if you are Live)"));
 
