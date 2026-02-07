@@ -3,15 +3,15 @@
 // ==========================================
 // Standard: Full Code Mandate - Kevin & Scott
 // Updated: 2026-02-06
-// Fixes: Authentication handling and Secret Null-Checks
+// Fixes: Added 'axios' requirement and Secret Null-Checks
 
 const tmi = require('tmi.js');
-const axios = require('axios');
+const axios = require('axios'); // FIXED: This solves the 'axios is not defined' error
 const express = require('express');
 const { TikTokConnectionWrapper } = require('tiktok-live-connector');
 
 // --- CONFIG & SECRETS ---
-// Ensure these are named exactly like this in your GitHub Actions Secrets
+// These pull from your GitHub Settings > Secrets
 const CHAT_CHANNEL = 'werewolf3788';
 const TWITCH_TOKEN = process.env.TWITCH_OAUTH; 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -23,10 +23,11 @@ const TT_USER = 'k082412';
 if (!TWITCH_TOKEN || !TWITCH_CLIENT_ID || !DISCORD_WEBHOOK) {
     console.error("❌ ERROR: One or more GitHub Secrets are MISSING.");
     console.log("Required: TWITCH_OAUTH, TWITCH_CLIENT_ID, and DISCORD_WEBHOOK_URL");
-    process.exit(1); 
+    process.exit(1); // Stop the bot safely
 }
 
 // --- FRIENDS TO TRACK ---
+// Monitors if TJ, Michael, or Ray go live
 const friends = [
     { name: 'terrdog420', id: 'TJ' },
     { name: 'mjolnirgaming', id: 'Michael' },
