@@ -3,16 +3,14 @@
 // ==========================================
 // Standard: Full Code Mandate - Kevin & Scott
 // Updated: 2026-02-06
-// Fixes: Corrected TikTok constructor and added error isolation for stable streaming.
+// Fixes: Integrated full chat mirroring for Twitch, TikTok, and Discord logs.
 
 const tmi = require('tmi.js');
 const axios = require('axios');
 const express = require('express');
-// FIXED: Using WebcastPushConnection for the latest TikTok library standards
-const { WebcastPushConnection } = require('tiktok-live-connector'); 
+const { WebcastPushConnection } = require('tiktok-live-connector');
 
 // --- CONFIG & SECRETS ---
-// These pull from your GitHub Settings > Secrets
 const CHAT_CHANNEL = 'werewolf3788';
 const TWITCH_TOKEN = process.env.TWITCH_OAUTH; 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -20,20 +18,18 @@ const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 const TT_USER = 'k082412';
 
 // --- CRITICAL SECRET CHECK ---
-// Stops the bot safely if GitHub Secrets aren't properly mapped
+// Ensures bot stops safely if GitHub Secrets are missing
 if (!TWITCH_TOKEN || !TWITCH_CLIENT_ID || !DISCORD_WEBHOOK) {
     console.error("❌ ERROR: One or more GitHub Secrets are MISSING.");
-    console.log("Check: TWITCH_OAUTH, TWITCH_CLIENT_ID, and DISCORD_WEBHOOK_URL");
     process.exit(1); 
 }
 
 // --- FRIENDS TO TRACK ---
-// Monitors status for TJ, Michael, and Ray
 const friends = [
     { name: 'terrdog420', id: 'TJ' },
     { name: 'mjolnirgaming', id: 'Michael' },
     { name: 'raymystro', id: 'Ray' }
-    // { name: 'phoenix_darkfire', id: 'Seth' } // PAUSED: Currently not speaking
+    // { name: 'phoenix_darkfire', id: 'Seth' } // PAUSED
 ];
 const liveStates = new Map();
 
@@ -44,7 +40,6 @@ app.use(express.json());
 const client = new tmi.Client({
     identity: { 
         username: CHAT_CHANNEL, 
-        // Automatically adds 'oauth:' if it's missing from your secret
         password: TWITCH_TOKEN.startsWith('oauth:') ? TWITCH_TOKEN : `oauth:${TWITCH_TOKEN}` 
     },
     channels: [CHAT_CHANNEL]
@@ -56,8 +51,19 @@ async function sendToDiscord(user, platform, message) {
         await axios.post(DISCORD_WEBHOOK, {
             content: `**[${platform}] ${user}:** ${message}`
         });
-    } catch (err) { console.log("Discord Mirror Error: Check your Webhook URL."); }
+    } catch (err) { 
+        console.log(`❌ Discord Mirror Failed: ${err.response?.data?.message || err.message}`); 
+    }
 }
+
+// --- TWITCH CHAT LISTENER ---
+// Listens to your Twitch chat and mirrors to Discord
+client.on('message', (channel, tags, message, self) => {
+    if (self) return; 
+    const user = tags['display-name'] || tags.username;
+    console.log(`💬 [Twitch] ${user}: ${message}`);
+    sendToDiscord(user, 'Twitch', message);
+});
 
 // --- SHOUTOUT LOGIC ---
 async function checkFriendStreams() {
@@ -99,17 +105,20 @@ client.connect()
         console.log("🚀 Twitch Connected Successfully.");
         client.say(CHAT_CHANNEL, "Werewolf Multi-Stream Relay is ONLINE. 🐺");
         
-        // TikTok Connector Logic - Isolated to prevent total crash
         try {
             const tiktok = new WebcastPushConnection(TT_USER);
             tiktok.connect()
-                .then(state => console.log(`📡 TikTok Bridge Active: ${state.roomId}`))
-                .catch(() => console.log("TikTok Offline (Bridge waiting for you to go Live)"));
-        } catch (e) {
-            console.log("TikTok initialization skipped due to library error.");
-        }
+                .then(() => console.log(`📡 TikTok Bridge Active`))
+                .catch(() => console.log("TikTok Offline (Waiting for stream)"));
+                
+            // Listen for TikTok comments and relay to Twitch & Discord
+            tiktok.on('chat', data => {
+                sendToDiscord(data.uniqueId, 'TikTok', data.comment);
+                client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
+            });
+        } catch (e) { console.log("TikTok initialization skipped."); }
 
-        // Check friend status every 5 minutes
+        // Monitor friends every 5 minutes
         setInterval(checkFriendStreams, 300000);
 
         const PORT = process.env.PORT || 3000;
@@ -119,12 +128,10 @@ client.connect()
         console.error("❌ TWITCH LOGIN FAILED:", err);
     });
 
-// --- BRIDGE ENDPOINT (Receives external chat messages) ---
+// --- BRIDGE ENDPOINT (For YouTube/Footer Bridge) ---
 app.post('/api/bridge', (req, res) => {
     const { username, message, platform } = req.body;
-    // Mirror to Twitch so you see it on the PlayStation
     client.say(CHAT_CHANNEL, `[${platform}] ${username}: ${message}`);
-    // Mirror to Discord logs
     sendToDiscord(username, platform, message);
     res.status(200).send("Relayed");
 });
