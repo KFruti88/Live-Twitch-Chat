@@ -3,10 +3,10 @@
 // ==========================================
 // Standard: Full Code Mandate - Kevin & Scott
 // Updated: 2026-02-06
-// Change Log: Consolidated logic and fixed missing 'axios' requirement.
+// Fix: Added error handling for "Login authentication failed"
 
 const tmi = require('tmi.js');
-const axios = require('axios'); // CRITICAL: This allows the bot to talk to Twitch & Discord
+const axios = require('axios');
 const express = require('express');
 const { TikTokConnectionWrapper } = require('tiktok-live-connector');
 
@@ -19,12 +19,11 @@ const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 const TT_USER = 'k082412';
 
 // --- FRIENDS TO TRACK ---
-// Monitors if Seth, TJ, Michael, or Ray go live
 const friends = [
-    { name: 'phoenix_darkfire', id: 'Seth' },
     { name: 'terrdog420', id: 'TJ' },
     { name: 'mjolnirgaming', id: 'Michael' },
     { name: 'raymystro', id: 'Ray' }
+    // { name: 'phoenix_darkfire', id: 'Seth' } // PAUSED: Not currently speaking
 ];
 const liveStates = new Map();
 
@@ -33,7 +32,11 @@ app.use(express.json());
 
 // --- TWITCH CLIENT SETUP ---
 const client = new tmi.Client({
-    identity: { username: CHAT_CHANNEL, password: `oauth:${TWITCH_TOKEN}` },
+    identity: { 
+        username: CHAT_CHANNEL, 
+        // Force 'oauth:' prefix if missing
+        password: TWITCH_TOKEN.startsWith('oauth:') ? TWITCH_TOKEN : `oauth:${TWITCH_TOKEN}` 
+    },
     channels: [CHAT_CHANNEL]
 });
 
@@ -47,7 +50,6 @@ async function sendToDiscord(user, platform, message) {
 }
 
 // --- SHOUTOUT LOGIC ---
-// Automatically posts a shoutout when friends go live
 async function checkFriendStreams() {
     const userLogins = friends.map(f => f.name).join('&user_login=');
     const url = `https://api.twitch.tv/helix/streams?user_login=${userLogins}`;
@@ -56,7 +58,7 @@ async function checkFriendStreams() {
         const response = await axios.get(url, {
             headers: {
                 'Client-ID': TWITCH_CLIENT_ID,
-                'Authorization': `Bearer ${TWITCH_TOKEN}`
+                'Authorization': `Bearer ${TWITCH_TOKEN.replace('oauth:', '')}`
             }
         });
 
@@ -73,7 +75,6 @@ async function checkFriendStreams() {
             }
         });
 
-        // Reset state when they go offline
         friends.forEach(f => {
             if (!currentLiveLogins.includes(f.name.toLowerCase())) {
                 liveStates.set(f.name.toLowerCase(), false);
@@ -83,35 +84,32 @@ async function checkFriendStreams() {
 }
 
 // --- STARTUP SEQUENCE ---
-client.connect().then(() => {
-    console.log("🚀 Twitch Connected.");
-    
-    // Initial startup notification
-    client.say(CHAT_CHANNEL, "Werewolf Multi-Stream Relay is ONLINE and listening. 🐺");
-    
-    // Start TikTok Connector
-    const tiktok = new TikTokConnectionWrapper(TT_USER);
-    tiktok.connect()
-        .then(() => console.log("📡 TikTok Bridge Active"))
-        .catch(() => console.log("TikTok Connection Waiting (Start your TikTok Live)"));
+// Handles login errors gracefully to prevent process crashes
+client.connect()
+    .then(() => {
+        console.log("🚀 Twitch Connected.");
+        client.say(CHAT_CHANNEL, "Werewolf Multi-Stream Relay is ONLINE. 🐺");
+        
+        const tiktok = new TikTokConnectionWrapper(TT_USER);
+        tiktok.connect().catch(() => console.log("TikTok Offline (Bridge waiting)"));
 
-    // Check for friend streams every 5 minutes
-    setInterval(checkFriendStreams, 300000);
+        // Monitor friend status every 5 minutes
+        setInterval(checkFriendStreams, 300000);
 
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => console.log(`✅ Bridge active on port ${PORT}`));
-});
+        const PORT = process.env.PORT || 3000;
+        app.listen(PORT, () => console.log(`✅ Bridge active on port ${PORT}`));
+    })
+    .catch((err) => {
+        console.error("❌ TWITCH LOGIN FAILED:", err);
+        console.log("Action: Regenerate your token at twitchapps.com/tmi/ and update GitHub Secrets.");
+    });
 
-// --- BRIDGE ENDPOINT (For YouTube/Trovo/Website) ---
-// This receives data from your dashboard.html or footer bridge
+// --- BRIDGE ENDPOINT ---
 app.post('/api/bridge', (req, res) => {
     const { username, message, platform } = req.body;
-    
-    // 1. Post to Twitch (So it appears on your PlayStation screen)
+    // Post to Twitch for PlayStation visibility
     client.say(CHAT_CHANNEL, `[${platform}] ${username}: ${message}`);
-    
-    // 2. Post to Discord logs
+    // Mirror to Discord logs
     sendToDiscord(username, platform, message);
-    
     res.status(200).send("Relayed");
 });
