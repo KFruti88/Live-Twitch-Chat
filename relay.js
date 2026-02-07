@@ -21,7 +21,7 @@ const TT_USER = 'k082412';
 
 // --- THE PACK (AUTHORIZED IDs) ---
 // PASTE YOUR NUMERIC ID HERE. If you leave this empty [], anyone can use !send
-const authorizedUsers = ['PASTE_YOUR_ID_HERE']; 
+const authorizedUsers = ['1136876505142677504']; 
 
 const app = express();
 app.use(express.json());
