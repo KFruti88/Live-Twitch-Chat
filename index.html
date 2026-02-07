@@ -1,39 +1,290 @@
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>Werewolf Hunter Command Center</title>
+    
+    <style>
+        /* ==========================================
+           CSS: STYLING & LAYOUT
+           ========================================== */
+        @import url(https://fonts.googleapis.com/css?family=Roboto:700,900);
 
-<div id="tribute-bar">
-    <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg">
-    <span>IN HONOR OF OLDMAN - FEB, 2025</span>
-    <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg">
-</div>
+        * { box-sizing: border-box; }
 
-<div id="special-event-container"></div>
+        html, body { 
+            height: 100%; 
+            width: 100%; 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background: transparent; 
+            font-family: 'Roboto', sans-serif; 
+        }
 
-<div class="top-right-hub">
-    <div class="info-pill" id="theme-pill">
-        <span id="game-icon">🐺</span>
-        <span id="local-time">--:--</span>
-        <span>| EST</span>
+        /* Tribute Bar (Top Center) */
+        #tribute-bar {
+            position: absolute; 
+            top: 0; 
+            left: 50%; 
+            transform: translateX(-50%);
+            display: flex; 
+            align-items: center; 
+            gap: 20px;
+            background: linear-gradient(180deg, rgba(30,30,30,0.98) 0%, rgba(0,0,0,0.95) 100%); 
+            padding: 12px 40px; 
+            border-bottom: 4px solid #FFD700; 
+            border-radius: 0 0 20px 20px;
+            color: white; 
+            z-index: 1000; 
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+        }
+        #tribute-bar img { height: 20px; }
+        #tribute-bar span { letter-spacing: 2px; font-weight: 900; }
+
+        /* HUD & Branding Hub (Top Right) */
+        .top-right-hub { 
+            position: absolute; 
+            top: 20px; 
+            right: 40px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end; 
+            gap: 10px; 
+            z-index: 100; 
+        }
+        .info-pill { 
+            background: rgba(0,0,0,0.85); 
+            border-right: 6px solid #FF5F1F; 
+            padding: 8px 22px; 
+            color: white; 
+            font-weight: 900; 
+            border-radius: 4px; 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+        }
+        .qr-box { 
+            background: white; 
+            padding: 4px; 
+            border-radius: 4px; 
+            filter: drop-shadow(0 0 8px rgba(0,0,0,0.5));
+        }
+
+        /* Trophy Tracker Panel (Middle Right) */
+        #trophy-panel {
+            position: absolute; 
+            right: 40px; 
+            top: 180px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px; 
+            z-index: 100;
+        }
+        .tracker-box {
+            background: rgba(0,0,0,0.85); 
+            border: 1px solid #FF5F1F; 
+            padding: 5px 12px; 
+            border-radius: 4px; 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+            min-width: 120px;
+            animation: fadeIn 0.5s forwards;
+        }
+        .tracker-box .emoji { font-size: 20px; }
+        .tracker-box .count-val { font-size: 18px; color: white; font-weight: 900; }
+        .tracker-box .count-lbl { font-size: 9px; color: #00d2ff; text-transform: uppercase; }
+
+        /* Branding Footer (Bottom Right) */
+        .brand-footer { 
+            position: absolute; 
+            bottom: 30px; 
+            right: 40px; 
+            display: flex; 
+            align-items: center; 
+            gap: 20px; 
+            z-index: 100; 
+        }
+        .text-stack { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end; 
+            gap: 8px; 
+            width: 400px; 
+        }
+        #shoutout-display { 
+            background: rgba(0,0,0,0.8); 
+            border-left: 4px solid #FF5F1F; 
+            padding: 10px 15px; 
+            color: white; 
+            font-size: 14px; 
+            text-align: center; 
+            border-radius: 4px; 
+            width: 100%; 
+            font-weight: 700; 
+        }
+        #game-name-display { 
+            font-size: 26px; 
+            font-weight: 900; 
+            color: white; 
+            text-transform: uppercase; 
+            text-shadow: 0 0 10px #000, 0 0 5px #FF5F1F; 
+        }
+        .main-logo { 
+            height: 110px; 
+            width: 110px; 
+            border-radius: 50%; 
+            border: 4px solid #FF5F1F; 
+            background: #000; 
+            filter: drop-shadow(0 0 12px #FF5F1F); 
+        }
+
+        /* Chat Log (Bottom Left) */
+        #log { 
+            position: absolute; 
+            bottom: 30px; 
+            left: 40px; 
+            width: 400px; 
+            display: flex; 
+            flex-direction: column-reverse; 
+            gap: 5px; 
+            z-index: 100; 
+        }
+        .chat-row { display: flex; animation: fadeIn 0.4s ease-out forwards; }
+        .chat-meta { 
+            width: 120px; 
+            text-align: right; 
+            padding: 8px 10px; 
+            background: rgba(0,0,0,0.7); 
+            border-left: 4px solid #FF5F1F; 
+            color: white; 
+            font-weight: 900; 
+            font-size: 14px; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap; 
+        }
+        .chat-message { 
+            flex: 1; 
+            padding: 8px 10px; 
+            background: rgba(0,0,0,0.5); 
+            color: white; 
+            font-weight: 700; 
+            font-size: 14px; 
+            word-wrap: break-word; 
+        }
+
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateX(10px); } 
+            to { opacity: 1; transform: translateX(0); } 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="tribute-bar">
+        <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg" alt="US Flag">
+        <span>IN HONOR OF OLDMAN - FEB, 2025</span>
+        <img src="https://upload.wikimedia.org/wikipedia/en/a/a4/Flag_of_the_United_States.svg" alt="US Flag">
     </div>
-    <div class="qr-box">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=https://www.amazon.com/gp/goldbox?tag=werewolf3788-20">
+
+    <div class="top-right-hub">
+        <div class="info-pill" id="theme-pill">
+            <span id="game-icon">🐺</span>
+            <span id="local-time">--:--</span>
+            <span>| EST</span>
+        </div>
+        <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=https://www.amazon.com/gp/goldbox?tag=werewolf3788-20" alt="Amazon Deals QR">
+        </div>
     </div>
-</div>
 
-<div id="trophy-panel">
-    <div class="tracker-box"><span class="emoji">💎</span><div><span id="dia-val" class="count-val">4</span><br><span class="count-lbl">Dia</span></div></div>
-    <div class="tracker-box"><span class="emoji">🥇</span><div><span id="gold-val" class="count-val">185</span><br><span class="count-lbl">Gold</span></div></div>
-    <div class="tracker-box"><span class="emoji">🥈</span><div><span id="silv-val" class="count-val">524</span><br><span class="count-lbl">Silv</span></div></div>
-    <div class="tracker-box"><span class="emoji">🥉</span><div><span id="bron-val" class="count-val">401</span><br><span class="count-lbl">Bron</span></div></div>
-</div>
-
-<div class="brand-footer">
-    <div class="text-stack">
-        <div id="game-name-display">HUNTER: CALL OF THE WILD</div>
-        <div id="shoutout-display">Scan the QR code to support the Pack! 🐺</div>
+    <div id="trophy-panel">
+        <div class="tracker-box"><span class="emoji">💎</span><div><span id="dia-val" class="count-val">4</span><br><span class="count-lbl">Dia</span></div></div>
+        <div class="tracker-box"><span class="emoji">🥇</span><div><span id="gold-val" class="count-val">185</span><br><span class="count-lbl">Gold</span></div></div>
+        <div class="tracker-box"><span class="emoji">🥈</span><div><span id="silv-val" class="count-val">524</span><br><span class="count-lbl">Silv</span></div></div>
+        <div class="tracker-box"><span class="emoji">🥉</span><div><span id="bron-val" class="count-val">401</span><br><span class="count-lbl">Bron</span></div></div>
     </div>
-    <img src="https://werewolf.ourflora.com/wp-content/uploads/2025/12/image_2025-12-22_222907634.png" class="main-logo">
-</div>
 
-<div id="log"></div>
+    <div class="brand-footer">
+        <div class="text-stack">
+            <div id="game-name-display">HUNTER: CALL OF THE WILD</div>
+            <div id="shoutout-display">Scan the QR code to support the Pack! 🐺</div>
+        </div>
+        <img src="https://werewolf.ourflora.com/wp-content/uploads/2025/12/image_2025-12-22_222907634.png" class="main-logo" alt="Werewolf Logo">
+    </div>
 
-<script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <div id="log"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/comfy.js@latest/dist/comfy.min.js"></script>
+    <script>
+        /* ==========================================
+           JAVASCRIPT: LOGIC & INTERACTION
+           ========================================== */
+        const user = "werewolf3788";
+
+        /**
+         * EST Clock Engine: Fixed to America/New_York
+         */
+        function updateClock() {
+            const estTime = new Date().toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                timeZone: 'America/New_York' 
+            });
+            document.getElementById('local-time').innerText = estTime;
+        }
+
+        /**
+         * ComfyJS Chat Listener: Handles trophies and chat log
+         */
+        ComfyJS.onChat = (user, message, flags, self, extra) => {
+            if (self) return;
+            const msg = message.toLowerCase();
+
+            // Trophy Syncing with StreamElements Commands
+            if (msg.includes("!diamond💎")) { 
+                const n = message.match(/\d+/); 
+                if(n) document.getElementById('dia-val').innerText = n[0]; 
+            }
+            if (msg.includes("!gold🥇")) { 
+                const n = message.match(/\d+/); 
+                if(n) document.getElementById('gold-val').innerText = n[0]; 
+            }
+            if (msg.includes("!silver🥈")) { 
+                const n = message.match(/\d+/); 
+                if(n) document.getElementById('silv-val').innerText = n[0]; 
+            }
+            if (msg.includes("!bronze🥉")) { 
+                const n = message.match(/\d+/); 
+                if(n) document.getElementById('bron-val').innerText = n[0]; 
+            }
+
+            // Standard Chat Rendering
+            const log = document.getElementById('log');
+            const row = document.createElement('div');
+            row.className = "chat-row";
+            row.innerHTML = `
+                <span class="chat-meta" style="color: ${extra.userColor || '#FFF'}">${user}</span>
+                <span class="chat-message">${message}</span>
+            `;
+            log.prepend(row);
+            
+            // Maintain scannability: Limit log to 10 entries
+            if (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        };
+
+        // Initialize Time & Twitch connection
+        setInterval(updateClock, 1000);
+        updateClock(); 
+        ComfyJS.Init(user);
+    </script>
+</body>
+</html>
