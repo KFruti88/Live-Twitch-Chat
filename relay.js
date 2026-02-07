@@ -3,7 +3,7 @@
 // ==========================================
 // Standard: Full Code Mandate - Kevin & Scott
 // Updated: 2026-02-06
-// Fix: Added error handling for "Login authentication failed"
+// Fixes: Authentication handling and Secret Null-Checks
 
 const tmi = require('tmi.js');
 const axios = require('axios');
@@ -11,12 +11,20 @@ const express = require('express');
 const { TikTokConnectionWrapper } = require('tiktok-live-connector');
 
 // --- CONFIG & SECRETS ---
-// These pull from your GitHub Settings > Secrets
+// Ensure these are named exactly like this in your GitHub Actions Secrets
 const CHAT_CHANNEL = 'werewolf3788';
 const TWITCH_TOKEN = process.env.TWITCH_OAUTH; 
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
 const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 const TT_USER = 'k082412';
+
+// --- CRITICAL SECRET CHECK ---
+// Prevents "startsWith" or "replace" crashes if secrets are missing from GitHub
+if (!TWITCH_TOKEN || !TWITCH_CLIENT_ID || !DISCORD_WEBHOOK) {
+    console.error("❌ ERROR: One or more GitHub Secrets are MISSING.");
+    console.log("Required: TWITCH_OAUTH, TWITCH_CLIENT_ID, and DISCORD_WEBHOOK_URL");
+    process.exit(1); 
+}
 
 // --- FRIENDS TO TRACK ---
 const friends = [
@@ -34,7 +42,7 @@ app.use(express.json());
 const client = new tmi.Client({
     identity: { 
         username: CHAT_CHANNEL, 
-        // Force 'oauth:' prefix if missing
+        // Handles "oauth:" prefix automatically
         password: TWITCH_TOKEN.startsWith('oauth:') ? TWITCH_TOKEN : `oauth:${TWITCH_TOKEN}` 
     },
     channels: [CHAT_CHANNEL]
@@ -46,7 +54,7 @@ async function sendToDiscord(user, platform, message) {
         await axios.post(DISCORD_WEBHOOK, {
             content: `**[${platform}] ${user}:** ${message}`
         });
-    } catch (err) { console.log("Discord Webhook Error: Check your URL secret."); }
+    } catch (err) { console.log("Discord Webhook Error: Mirroring failed."); }
 }
 
 // --- SHOUTOUT LOGIC ---
@@ -84,16 +92,15 @@ async function checkFriendStreams() {
 }
 
 // --- STARTUP SEQUENCE ---
-// Handles login errors gracefully to prevent process crashes
 client.connect()
     .then(() => {
         console.log("🚀 Twitch Connected.");
         client.say(CHAT_CHANNEL, "Werewolf Multi-Stream Relay is ONLINE. 🐺");
         
         const tiktok = new TikTokConnectionWrapper(TT_USER);
-        tiktok.connect().catch(() => console.log("TikTok Offline (Bridge waiting)"));
+        tiktok.connect().catch(() => console.log("TikTok Bridge Offline (Waiting)"));
 
-        // Monitor friend status every 5 minutes
+        // Interval: 5 Minutes
         setInterval(checkFriendStreams, 300000);
 
         const PORT = process.env.PORT || 3000;
@@ -101,15 +108,14 @@ client.connect()
     })
     .catch((err) => {
         console.error("❌ TWITCH LOGIN FAILED:", err);
-        console.log("Action: Regenerate your token at twitchapps.com/tmi/ and update GitHub Secrets.");
     });
 
 // --- BRIDGE ENDPOINT ---
 app.post('/api/bridge', (req, res) => {
     const { username, message, platform } = req.body;
-    // Post to Twitch for PlayStation visibility
+    // Relay to Twitch for PlayStation Overlay
     client.say(CHAT_CHANNEL, `[${platform}] ${username}: ${message}`);
-    // Mirror to Discord logs
+    // Mirror to Discord
     sendToDiscord(username, platform, message);
     res.status(200).send("Relayed");
 });
