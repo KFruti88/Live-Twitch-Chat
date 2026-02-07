@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     concurrency:
       group: relay-group
-      cancel-in-progress: true # Prevents two bots from running at once if you push updates
+      cancel-in-progress: true # Prevents two bots from running at once
     
     steps:
       - name: Checkout Code
@@ -29,11 +29,14 @@ jobs:
 
       - name: Start Relay Bot
         env:
-          # Mapping all your Repository Secrets
-          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
+          # This maps your Repository Secrets to the Bot's memory
+          TWITCH_OAUTH: ${{ secrets.TWITCH_OAUTH }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # Keeping these for backwards compatibility if needed
+          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
           TWITCH_BROADCASTER_ID: ${{ secrets.TWITCH_BROADCASTER_ID }}
           WP_RELAY_URL: ${{ secrets.WP_RELAY_URL }}
           PORT: 3000
-        # Timeout at 6 hours (21600s) to stay within GitHub's free-tier limits
+        # Timeout at 6 hours (21600s) to stay within free limits
         run: timeout 21600s node relay.js
