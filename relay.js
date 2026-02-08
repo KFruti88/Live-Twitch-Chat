@@ -1,7 +1,7 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - V7.3 (ULTIMATE UNIFIED RELAY)
+   WEREWOLF MASTER ENGINE - V7.4 (PERMANENT RENDER BUILD)
    Standard: Full Code Mandate (No Snippets) - Kevin & Scott
-   Updated: 2026-02-08 (Merged SE Triggers, All-Platform Bridge, & Themes)
+   Updated: 2026-02-08 (Unified Themes, Careers, & All-Platform Bridge)
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -41,7 +41,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 
-// --- 1. THE DATA DOOR (API for Overlay) ---
+// --- 1. OVERLAY API ---
 app.get('/api/overlay', (req, res) => {
     const theme = THEMES[currentTheme] || THEMES['standard'];
     res.json({
@@ -52,30 +52,25 @@ app.get('/api/overlay', (req, res) => {
     });
 });
 
-// --- 2. THE UNIVERSAL BRIDGE (YT, Trovo, FB -> Twitch) ---
+// --- 2. UNIVERSAL BRIDGE (YouTube/FB/Trovo -> Twitch) ---
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     if (user && text && client.readyState() === "OPEN") {
-        const relayMsg = `[${service.toUpperCase()}] ${user}: ${text}`;
-        client.say(CHAT_CHANNEL, relayMsg); 
-        console.log(`Relay Active: ${relayMsg}`);
+        client.say(CHAT_CHANNEL, `[${service.toUpperCase()}] ${user}: ${text}`);
     }
     res.sendStatus(200);
 });
 
-app.get('/', (req, res) => res.status(200).send("Werewolf Master Engine: ONLINE 🐺"));
+app.get('/', (req, res) => res.status(200).send("Werewolf Engine 7.4: ONLINE 🐺"));
 
 // --- 3. CONNECTIONS ---
 const tiktok = new WebcastPushConnection(TT_USER);
 
 function startTikTok() {
-    console.log("🐺 Wake up call received. Connecting to TikTok...");
+    console.log("🐺 Trigger detected. Connecting to TikTok...");
     tiktok.connect()
         .then(() => console.log("✅ TikTok Bridge ACTIVE"))
-        .catch(() => {
-            console.log("🔄 TikTok retry in 30s...");
-            setTimeout(startTikTok, 30000); 
-        });
+        .catch(() => setTimeout(startTikTok, 30000)); 
 }
 
 tiktok.on('chat', data => {
@@ -94,67 +89,42 @@ const client = new tmi.Client({
 
 // --- 4. STARTUP & TRIGGER LOGIC ---
 async function startEngine() {
-    console.log("🛠️ Starting Werewolf Master Engine v7.3...");
-
-    if (!process.env.TWITCH_OAUTH) {
-        console.error("🛑 ERROR: TWITCH_OAUTH missing!");
-        process.exit(1);
-    }
-
     try {
         await client.connect();
-        console.log("🚀 Twitch Connection: SUCCESS");
-
-        const serverPort = process.env.PORT || 3000;
-        app.listen(serverPort, () => {
-            console.log("✅ Engine 7.3: All Systems Integrated.");
+        app.listen(process.env.PORT || 3000, () => {
+            console.log("✅ Engine 7.4 Live on Render.");
         });
+    } catch (err) { process.exit(1); }
 
-    } catch (err) {
-        console.error("🛑 Startup Failure:", err.message);
-        process.exit(1);
-    }
-
-    // --- 5. AUTOMATED COMMAND & TRIGGER LISTENER ---
     client.on('message', (channel, tags, message, self) => {
         if (self) return;
         const msg = message.toLowerCase();
         const isOwner = (tags.username === CHAT_CHANNEL);
 
-        // TRIGGER: Looks for your new StreamElements format
+        // SE Announcement Trigger: 🎮 Current Game:
         if (tags.username === 'streamelements' && msg.includes('current game:')) {
-            console.log("🎯 Live Announcement Detected. Activating Bridges...");
             isLive = true;
             startTikTok();
-            
-            // Auto-Switch Theme based on Game Name
-            if (msg.includes('hunter')) {
-                currentTheme = 'hunter';
-                console.log("🏹 Hunting theme verified: Trophies Enabled.");
-            }
+            if (msg.includes('hunter')) currentTheme = 'hunter';
+            if (msg.includes('angler')) currentTheme = 'angler';
         }
 
+        // Owner Commands
         if (isOwner) {
-            // Manual TikTok Start
-            if (msg === "!go-live") startTikTok();
-
-            // Theme Controls
+            if (msg === '!go-live') startTikTok();
+            if (msg === '!diamond') rankData.diamond++;
+            if (msg === '!gold') rankData.gold++;
+            if (msg === '!silver') rankData.silver++;
+            if (msg === '!bronze') rankData.bronze++;
+            if (msg === '!greatone') rankData.greatone++;
+            if (msg === '!legendary') rankData.legendary++;
+            if (msg === '!mythical') rankData.mythical++;
+            
+            // Theme Switcher
             if (msg.startsWith('!theme ')) {
                 const target = msg.replace('!theme ', '').trim();
-                if (THEMES[target]) {
-                    currentTheme = target;
-                    console.log(`🎨 Theme set to: ${target}`);
-                }
+                if (THEMES[target]) currentTheme = target;
             }
-
-            // Trophy Tracker (Updates rankData live)
-            if (msg === '!bronze') rankData.bronze++;
-            if (msg === '!silver') rankData.silver++;
-            if (msg === '!gold') rankData.gold++;
-            if (msg === '!mythical') rankData.mythical++;
-            if (msg === '!diamond') rankData.diamond++;
-            if (msg === '!legendary') rankData.legendary++;
-            if (msg === '!greatone') rankData.greatone++;
 
             // Global Broadcast (Twitch -> Discord)
             if (msg.startsWith('!broadcast ')) {
