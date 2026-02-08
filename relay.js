@@ -1,12 +1,14 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - VERSION 4.0 (THE FINAL RELAY)
+   WEREWOLF MASTER ENGINE - FINAL "SET IT & FORGET IT" EDITION
    Standard: Full Code Mandate - Kevin & Scott
-   Updated: 2026-02-07 (Individual Stealth Alerts + Multi-Broadcast)
+   Updated: 2026-02-08 (Zero-Maintenance Build)
+   Features: 4-Platform Relay + Stealth Tracker + Auto-Welcome + Health Check
    ========================================================================== */
 
 const tmi = require('tmi.js');
 const axios = require('axios');
 const express = require('express');
+const cors = require('cors'); // Essential for WordPress connectivity
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const { Client, GatewayIntentBits } = require('discord.js');
 
@@ -21,7 +23,7 @@ const FB_ACCESS = process.env.FB_ACCESS_TOKEN;
 const TT_USER = 'k082412';
 const authorizedUsers = ['1136876505142677504']; 
 
-// --- STATE TRACKERS ---
+// --- AUTOMATION TRACKERS ---
 let isLive = false; 
 const welcomedUsers = new Set(); 
 const lurkerTimers = new Map(); 
@@ -30,7 +32,15 @@ const notifiedLurkers = new Set();
 const app = express();
 app.use(express.json());
 
-// --- 1. CONNECTIONS (Twitch & Discord) ---
+// FIXED: Universal CORS allows your WordPress site to see the bot forever
+app.use(cors({ origin: '*' })); 
+
+// --- 1. HEALTH CHECK (Turns WordPress "ACTIVE" automatically) ---
+app.get('/', (req, res) => {
+    res.status(200).send("Werewolf Relay Engine: ONLINE 🐺");
+});
+
+// --- 2. CONNECTIONS (Twitch & Discord) ---
 const client = new tmi.Client({
     identity: { 
         username: CHAT_CHANNEL, 
@@ -43,7 +53,7 @@ const discordBot = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
 
-// --- 2. GLOBAL BROADCAST ENGINE ---
+// --- 3. GLOBAL BROADCAST ENGINE (Zero-Loop Sync) ---
 async function broadcastToAll(message) {
     console.log(`📢 SYSTEM BROADCAST: ${message}`);
     await axios.post(DISCORD_WEBHOOK, { content: `**[BROADCAST]** ${message}` }).catch(()=>{});
@@ -55,27 +65,23 @@ async function broadcastToAll(message) {
     }
 }
 
-// --- 3. 🕵️‍♂️ STEALTH LURKER TRACKER (Twitch Chat Pings) ---
+// --- 4. 🕵️‍♂️ STEALTH LURKER TRACKER ---
 async function checkNewLurkers() {
     if (!isLive) return;
-
     try {
         const response = await axios.get(`https://api.twitch.tv/helix/chat/chatters?broadcaster_id=${BROADCASTER_ID}&moderator_id=${BROADCASTER_ID}`, {
             headers: { 'Client-ID': CLIENT_ID, 'Authorization': `Bearer ${TWITCH_TOKEN.replace('oauth:', '')}` }
         });
-
         const chatters = response.data.data;
         const now = Date.now();
 
         chatters.forEach((chatter) => {
             const name = chatter.user_name;
             if (name === CHAT_CHANNEL || welcomedUsers.has(name)) return;
-
             if (!lurkerTimers.has(name)) lurkerTimers.set(name, now);
 
             const timeElapsed = Math.floor((now - lurkerTimers.get(name)) / 60000);
             if (timeElapsed >= 5 && !notifiedLurkers.has(name)) {
-                // ALERT: Sent as a colored '/me' message for visibility
                 client.action(CHAT_CHANNEL, `[STEALTH ALERT] 🌑 ${name} has been lurking for ${timeElapsed} minutes.`);
                 notifiedLurkers.add(name);
             }
@@ -83,12 +89,12 @@ async function checkNewLurkers() {
     } catch (err) { console.log("⚠️ Lurker Scan Failed."); }
 }
 
-// --- 4. TWITCH EVENT LISTENERS ---
+// --- 5. TWITCH EVENT LISTENERS ---
 client.on('notice', (channel, msgid, message) => {
     if (msgid === 'host_on' || message.toLowerCase().includes("is now live")) {
         if (!isLive) {
             isLive = true;
-            broadcastToAll("🐺 THE PACK IS LIVE! twitch.tv/werewolf3788");
+            broadcastToAll("🐺 THE PACK IS LIVE! Join the hunt at twitch.tv/werewolf3788");
             startTikTok();
         }
     }
@@ -106,8 +112,7 @@ client.on('message', (channel, tags, message, self) => {
         notifiedLurkers.delete(username);
     }
 
-    // Manual Live Trigger
-    if (tags.username === CHAT_CHANNEL && message === "!go-live") {
+    if (tags.username === CHAT_CHANNEL && (message === "!go-live" || message.toLowerCase().includes("live announcement"))) {
         isLive = true;
         welcomedUsers.clear();
         lurkerTimers.clear();
@@ -115,11 +120,10 @@ client.on('message', (channel, tags, message, self) => {
         startTikTok();
     }
 
-    // Mirror to Discord
     axios.post(DISCORD_WEBHOOK, { content: `**[Twitch] ${username}:** ${message}` }).catch(()=>{});
 });
 
-// --- 5. TIKTOK & BRIDGE API ---
+// --- 6. TIKTOK & BRIDGE API ---
 const tiktok = new WebcastPushConnection(TT_USER);
 function startTikTok() {
     if (!isLive) return;
@@ -141,15 +145,15 @@ app.post('/api/bridge', (req, res) => {
     res.status(200).send("Relayed");
 });
 
-// --- 6. STARTUP & HEARTBEAT ---
-setInterval(checkNewLurkers, 120000); // Check for lurkers every 2 mins
+// --- 7. STARTUP & HEARTBEAT ---
+setInterval(checkNewLurkers, 120000); 
 setInterval(() => {
-    console.log(`💓 [${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST] Engine 4.0 Active.`);
+    console.log(`💓 [${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST] Engine Final Active.`);
 }, 60000);
 
 client.connect().then(() => {
     if (DISCORD_BOT_TOKEN) discordBot.login(DISCORD_BOT_TOKEN).catch(()=>{});
-    app.listen(process.env.PORT || 3000, () => console.log(`✅ Master Engine 4.0 Online.`));
+    app.listen(process.env.PORT || 3000, () => console.log(`✅ Final Engine Online.`));
 });
 
 process.on('uncaughtException', (err) => console.log('🛑 ERROR:', err.message));
