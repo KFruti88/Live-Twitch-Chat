@@ -1,8 +1,11 @@
 {
   "name": "werewolf-relay-bot",
-  "version": "5.1.0",
-  "description": "Werewolf Master Engine - Theme & Rank Relay",
+  "version": "5.2.0",
+  "description": "Werewolf Master Engine - Theme, Rank & TikTok Relay",
   "main": "relay.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node relay.js"
   },
