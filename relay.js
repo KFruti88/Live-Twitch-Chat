@@ -1,7 +1,7 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - V5.2.2 (THE ULTIMATE STABILITY BUILD)
+   WEREWOLF MASTER ENGINE - V5.4 (CAREER TOTALS & STABILITY)
    Standard: Full Code Mandate (No Snippets) - Kevin & Scott
-   Updated: 2026-02-08 (Merged Themes, Ranks, TikTok Trigger, & Error Catching)
+   Updated: 2026-02-08 (Merged Careers, Themes, Ranks, & TikTok Trigger)
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -16,7 +16,17 @@ const EW_TAG = "Werewolf88#9992";
 
 let isLive = false;
 let currentTheme = 'standard';
-let rankData = { diamond: 0, gold: 0, silver: 0, bronze: 0 };
+
+// --- CAREER TROPHY DATA ---
+let rankData = { 
+    bronze: 410, 
+    silver: 544, 
+    gold: 193, 
+    mythical: 5,
+    diamond: 6, 
+    legendary: 0, 
+    greatone: 0 
+};
 
 // --- THEME DATABASE ---
 const THEMES = {
@@ -35,7 +45,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 
-// --- API FOR WORDPRESS OVERLAY ---
+// --- API FOR OVERLAY ---
 app.get('/api/overlay', (req, res) => {
     const theme = THEMES[currentTheme] || THEMES['standard'];
     res.json({
@@ -46,7 +56,7 @@ app.get('/api/overlay', (req, res) => {
     });
 });
 
-app.get('/', (req, res) => res.status(200).send("Werewolf Smart Engine: ONLINE 🐺"));
+app.get('/', (req, res) => res.status(200).send("Werewolf Master Engine: ONLINE 🐺"));
 
 // --- TIKTOK CONNECTION ENGINE ---
 const tiktok = new WebcastPushConnection(TT_USER);
@@ -62,12 +72,7 @@ function startTikTok() {
     });
 }
 
-tiktok.on('chat', data => {
-    // Only relays to Twitch if needed
-    console.log(`[TikTok Chat] ${data.uniqueId}: ${data.comment}`);
-});
-
-// --- THE MAIN STARTUP WRAPPER ---
+// --- MAIN STARTUP WRAPPER ---
 async function startEngine() {
     console.log("🛠️ Starting Werewolf Engine...");
 
@@ -98,7 +103,7 @@ async function startEngine() {
         process.exit(1);
     }
 
-    // --- TWITCH COMMAND LISTENER ---
+    // --- TWITCH EVENT LISTENER ---
     client.on('message', (channel, tags, message, self) => {
         if (self) return;
         const msg = message.toLowerCase();
@@ -113,13 +118,15 @@ async function startEngine() {
             }
         }
 
-        // RANK TRACKER
+        // TROPHY TRACKER
         if (isOwner) {
-            if (msg === '!diamond') rankData.diamond++;
-            if (msg === '!gold') rankData.gold++;
-            if (msg === '!silver') rankData.silver++;
             if (msg === '!bronze') rankData.bronze++;
-            if (msg === '!resetranks') rankData = { diamond: 0, gold: 0, silver: 0, bronze: 0 };
+            if (msg === '!silver') rankData.silver++;
+            if (msg === '!gold') rankData.gold++;
+            if (msg === '!mythical') rankData.mythical++;
+            if (msg === '!diamond') rankData.diamond++;
+            if (msg === '!legendary') rankData.legendary++;
+            if (msg === '!greatone') rankData.greatone++;
             
             // THEME SWITCHER
             if (msg.startsWith('!theme ')) {
