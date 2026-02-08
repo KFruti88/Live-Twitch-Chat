@@ -1,7 +1,7 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - V5.8 (FINAL RENDER INTEGRATION)
+   WEREWOLF MASTER ENGINE - V6.9 (THE UNIFIED PROOF BUILD)
    Standard: Full Code Mandate (No Snippets) - Kevin & Scott
-   Updated: 2026-02-08 (Merged Themes, Two-Way Bridge, & Stability)
+   Updated: 2026-02-08 (Merged Themes, Careers, Two-Way Bridge, & Stability)
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -52,11 +52,13 @@ app.get('/api/overlay', (req, res) => {
     });
 });
 
-// --- 2. THE INBOUND BRIDGE (YouTube/Trovo/TikTok -> Twitch) ---
+// --- 2. THE UNIVERSAL BRIDGE (YT, Trovo, FB -> Twitch) ---
 app.post('/api/bridge', (req, res) => {
     const { user, text, service } = req.body;
     if (user && text && client.readyState() === "OPEN") {
-        client.say(CHAT_CHANNEL, `[${service}] ${user}: ${text}`);
+        const relayMsg = `[${service.toUpperCase()}] ${user}: ${text}`;
+        client.say(CHAT_CHANNEL, relayMsg); // Relays to Twitch & Overlay
+        console.log(`Relay Active: ${relayMsg}`);
     }
     res.sendStatus(200);
 });
@@ -76,13 +78,13 @@ const client = new tmi.Client({
 // TikTok Chat Relay Logic
 tiktok.on('chat', data => {
     if (client.readyState() === "OPEN") {
-        client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
+        client.say(CHAT_CHANNEL, `[TIKTOK] ${data.uniqueId}: ${data.comment}`);
     }
 });
 
-// --- 4. STARTUP ---
+// --- 4. STARTUP LOGIC ---
 async function startEngine() {
-    console.log("🛠️ Starting Werewolf Master Engine v5.8...");
+    console.log("🛠️ Starting Werewolf Master Engine v6.9...");
 
     if (!process.env.TWITCH_OAUTH) {
         console.error("🛑 ERROR: TWITCH_OAUTH missing from Environment Variables!");
@@ -95,7 +97,7 @@ async function startEngine() {
 
         const serverPort = process.env.PORT || 3000;
         app.listen(serverPort, () => {
-            console.log(`✅ Web Portal Active on Port ${serverPort}`);
+            console.log("✅ Engine 6.9: All Platforms Synced & Live.");
         });
 
     } catch (err) {
@@ -114,6 +116,7 @@ async function startEngine() {
             if (msg === "!go-live" || msg.includes("live announcement")) {
                 isLive = true;
                 tiktok.connect().then(() => console.log("✅ TikTok Connected")).catch(() => {});
+                console.log("🚀 Multi-Platform Bridge Activated.");
             }
 
             // Theme Controls
@@ -134,7 +137,7 @@ async function startEngine() {
             if (msg === '!legendary') rankData.legendary++;
             if (msg === '!greatone') rankData.greatone++;
 
-            // Global Broadcast
+            // Global Broadcast (Twitch -> Discord/Logs)
             if (msg.startsWith('!broadcast ')) {
                 const announcement = message.replace('!broadcast ', '');
                 if (process.env.DISCORD_WEBHOOK_URL) {
