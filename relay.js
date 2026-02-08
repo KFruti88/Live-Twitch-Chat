@@ -1,22 +1,20 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - FINAL PROOF V5.2
+   WEREWOLF MASTER ENGINE - V5.2.2 (THE ULTIMATE STABILITY BUILD)
    Standard: Full Code Mandate (No Snippets) - Kevin & Scott
-   Updated: 2026-02-08 (TikTok Trigger + Themes + Ranks + Proof)
+   Updated: 2026-02-08 (Merged Themes, Ranks, TikTok Trigger, & Error Catching)
    ========================================================================== */
 
 const tmi = require('tmi.js');
-const axios = require('axios');
 const express = require('express');
 const cors = require('cors');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 
-// --- CONFIG & SECRETS ---
+// --- CONFIG & STATE ---
 const CHAT_CHANNEL = 'werewolf3788';
-const TT_USER = 'k082412'; // Your TikTok username
-const EW_TAG = "Werewolf88#9992"; // Your Hunter/Angler ID
+const TT_USER = 'k082412'; 
+const EW_TAG = "Werewolf88#9992";
 
-// --- LIVE STATE & MEMORY ---
-let isLive = false; 
+let isLive = false;
 let currentTheme = 'standard';
 let rankData = { diamond: 0, gold: 0, silver: 0, bronze: 0 };
 
@@ -37,7 +35,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' }));
 
-// --- 1. THE PROOF API (For WordPress Overlay) ---
+// --- API FOR WORDPRESS OVERLAY ---
 app.get('/api/overlay', (req, res) => {
     const theme = THEMES[currentTheme] || THEMES['standard'];
     res.json({
@@ -48,19 +46,11 @@ app.get('/api/overlay', (req, res) => {
     });
 });
 
-app.get('/', (req, res) => {
-    res.status(200).send("Werewolf Smart Engine: ONLINE 🐺");
-});
+app.get('/', (req, res) => res.status(200).send("Werewolf Smart Engine: ONLINE 🐺"));
 
-// --- 2. CONNECTIONS ---
-const client = new tmi.Client({
-    identity: { username: CHAT_CHANNEL, password: `oauth:${process.env.TWITCH_OAUTH}` },
-    channels: [CHAT_CHANNEL]
-});
-
+// --- TIKTOK CONNECTION ENGINE ---
 const tiktok = new WebcastPushConnection(TT_USER);
 
-// --- 3. TIKTOK LOGIC (Activation only on "Live Announcement") ---
 function startTikTok() {
     if (!isLive) return;
     console.log("🐺 Attempting TikTok Connection...");
@@ -73,42 +63,76 @@ function startTikTok() {
 }
 
 tiktok.on('chat', data => {
-    client.say(CHAT_CHANNEL, `[TikTok] ${data.uniqueId}: ${data.comment}`);
+    // Only relays to Twitch if needed
+    console.log(`[TikTok Chat] ${data.uniqueId}: ${data.comment}`);
 });
 
-// --- 4. TWITCH COMMANDS & TRIGGER ENGINE ---
-client.on('message', (channel, tags, message, self) => {
-    if (self) return;
-    const msg = message.toLowerCase();
-    const isOwner = (tags.username === CHAT_CHANNEL);
+// --- THE MAIN STARTUP WRAPPER ---
+async function startEngine() {
+    console.log("🛠️ Starting Werewolf Engine...");
 
-    // LIVE TRIGGER: Only starts TikTok bridge on announcement
-    if (isOwner && (msg === "!go-live" || msg.includes("live announcement"))) {
-        if (!isLive) {
-            isLive = true;
-            console.log("🚀 LIVE DETECTED. Starting Multi-Platform Relay...");
-            startTikTok();
-        }
+    if (!process.env.TWITCH_OAUTH) {
+        console.error("🛑 ERROR: TWITCH_OAUTH environment variable is missing!");
+        process.exit(1); 
     }
 
-    // RANK TRACKER
-    if (isOwner) {
-        if (msg === '!diamond') rankData.diamond++;
-        if (msg === '!gold') rankData.gold++;
-        if (msg === '!resetranks') rankData = { diamond: 0, gold: 0, silver: 0, bronze: 0 };
-        
-        // THEME SWITCHER
-        if (msg.startsWith('!theme ')) {
-            const target = msg.replace('!theme ', '').trim();
-            if (THEMES[target]) currentTheme = target;
-        }
+    const client = new tmi.Client({
+        identity: { 
+            username: CHAT_CHANNEL, 
+            password: `oauth:${process.env.TWITCH_OAUTH.replace('oauth:', '')}` 
+        },
+        channels: [CHAT_CHANNEL]
+    });
+
+    try {
+        await client.connect();
+        console.log("🚀 Twitch Connection: SUCCESS");
+
+        const serverPort = process.env.PORT || 3000;
+        app.listen(serverPort, () => {
+            console.log(`✅ Web Portal Active on Port ${serverPort}`);
+        });
+
+    } catch (err) {
+        console.error("🛑 Engine failed to turn over:", err.message);
+        process.exit(1);
     }
-});
 
-// --- 5. STARTUP ---
-client.connect().then(() => {
-    console.log("✅ Master Engine V5.2 Online.");
-    app.listen(process.env.PORT || 3000);
-});
+    // --- TWITCH COMMAND LISTENER ---
+    client.on('message', (channel, tags, message, self) => {
+        if (self) return;
+        const msg = message.toLowerCase();
+        const isOwner = (tags.username === CHAT_CHANNEL);
 
-process.on('uncaughtException', (err) => console.log('🛑 ERROR:', err.message));
+        // TRIGGER: TikTok activates only on announcement
+        if (isOwner && (msg === "!go-live" || msg.includes("live announcement"))) {
+            if (!isLive) {
+                isLive = true;
+                console.log("🚀 LIVE DETECTED. Starting TikTok Bridge...");
+                startTikTok();
+            }
+        }
+
+        // RANK TRACKER
+        if (isOwner) {
+            if (msg === '!diamond') rankData.diamond++;
+            if (msg === '!gold') rankData.gold++;
+            if (msg === '!silver') rankData.silver++;
+            if (msg === '!bronze') rankData.bronze++;
+            if (msg === '!resetranks') rankData = { diamond: 0, gold: 0, silver: 0, bronze: 0 };
+            
+            // THEME SWITCHER
+            if (msg.startsWith('!theme ')) {
+                const target = msg.replace('!theme ', '').trim();
+                if (THEMES[target]) {
+                    currentTheme = target;
+                    console.log(`🎨 Theme set to: ${target}`);
+                }
+            }
+        }
+    });
+}
+
+startEngine();
+
+process.on('uncaughtException', (err) => console.log('🛑 UNCAUGHT ERROR:', err.message));
