@@ -1,26 +1,24 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - V9.0 (THE TOTAL PACK)
+   WEREWOLF MASTER ENGINE - V9.5 (TRUTH SERUM BUILD)
    Standard: Full Code Mandate - Kevin & Scott
-   Purpose: 24/7 Multi-Relay (TT + YT + Trovo + FB -> Twitch -> Discord)
+   Purpose: 24/7 Multi-Relay (TT + YT + Trovo -> Twitch -> Discord)
    ========================================================================== */
 
 const tmi = require('tmi.js');
 const { WebcastPushConnection } = require('tiktok-live-connector');
 const { LiveChat } = require('youtube-chat');
-const express = require('express'); // Required for Facebook Gate
 const axios = require('axios');
 
 // --- 1. CONFIGURATION ---
 const TWITCH_CHANNEL = 'werewolf3788';
 const TIKTOK_USER = 'k082412';
-const YOUTUBE_ID = process.env.YOUTUBE_CHANNEL_ID;
+// Secrets must be set in GitHub
+const YOUTUBE_ID = process.env.YOUTUBE_CHANNEL_ID; 
 const TROVO_CHANNEL_ID = process.env.TROVO_CHANNEL_ID;
+const TROVO_CLIENT_ID = process.env.TROVO_CLIENT_ID;
 const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 
-const app = express();
-app.use(express.json());
-
-// --- 2. THE TWITCH BOT (CORE HUB) ---
+// --- 2. TWITCH HUB (OUTPUT) ---
 const client = new tmi.Client({
     options: { debug: false },
     connection: { reconnect: true },
@@ -31,80 +29,112 @@ const client = new tmi.Client({
     channels: [TWITCH_CHANNEL]
 });
 
-// --- 3. THE RELAY LOGIC (Inbound -> Twitch) ---
+// --- 3. RELAY FUNCTION (The "Loudspeaker") ---
 function relayToTwitch(platform, user, message) {
     if (client.readyState() === "OPEN") {
         const relayMsg = `[${platform}] ${user}: ${message}`;
         client.say(TWITCH_CHANNEL, relayMsg);
-        console.log(`📡 Inbound: ${relayMsg}`);
+        console.log(`✅ RELAY SUCCESS: [${platform}] ${user} -> Twitch`);
+    } else {
+        console.log(`❌ RELAY FAILED: Twitch Client not OPEN. (Status: ${client.readyState()})`);
     }
 }
 
-// --- 4. THE UNIVERSAL GATE (Facebook Bridge) ---
-// Post comments here to relay them from Facebook
-app.post('/api/bridge', (req, res) => {
-    const { user, text, platform } = req.body;
-    if (user && text) {
-        relayToTwitch(platform || 'FACEBOOK', user, text);
-    }
-    res.sendStatus(200);
+// --- 4. YOUTUBE BRIDGE (Verbose Mode) ---
+const youtube = new LiveChat({ channelId: YOUTUBE_ID });
+
+youtube.on('start', (liveId) => {
+    console.log(`📹 YouTube: Stream Found! (Video ID: ${liveId})`);
 });
 
-// --- 5. TIKTOK BRIDGE (Isolated Loop) ---
+youtube.on('chat', (chatItem) => {
+    // This catches the standard chat event
+    const user = chatItem.author.name;
+    const text = chatItem.message.map(m => m.text || m.emojiText).join('');
+    console.log(`📨 YouTube Incoming: ${user}: ${text}`);
+    relayToTwitch('YOUTUBE', user, text);
+});
+
+youtube.on('error', (err) => {
+    console.log(`⚠️ YouTube Error: ${err.message}`);
+    // Auto-restart listener on error
+    setTimeout(() => youtube.start(), 60000);
+});
+
+// --- 5. TIKTOK BRIDGE (Re-Added) ---
 const tiktok = new WebcastPushConnection(TIKTOK_USER);
 function connectTikTok() {
     tiktok.connect()
         .then(() => console.log("✅ TikTok Bridge ACTIVE"))
-        .catch(() => {
-            console.log("⚠️ TikTok Offline. Retrying in 60s...");
+        .catch((err) => {
+            console.log(`⚠️ TikTok Status: Offline or Blocked (${err.message}). Retrying...`);
             setTimeout(connectTikTok, 60000); 
         });
 }
-tiktok.on('chat', data => relayToTwitch('TIKTOK', data.uniqueId, data.comment));
-
-// --- 6. YOUTUBE BRIDGE ---
-const youtube = new LiveChat({ channelId: YOUTUBE_ID });
-youtube.on('message', (msg) => {
-    const user = msg.author.name;
-    const text = msg.message.map(part => part.text).join('');
-    relayToTwitch('YOUTUBE', user, text);
+tiktok.on('chat', data => {
+    console.log(`📨 TikTok Incoming: ${data.uniqueId}`);
+    relayToTwitch('TIKTOK', data.uniqueId, data.comment);
 });
 
-// --- 7. TROVO BRIDGE (API Polling) ---
+// --- 6. TROVO BRIDGE (Debug Mode) ---
 async function fetchTrovoChat() {
-    if (!TROVO_CHANNEL_ID || !process.env.TROVO_CLIENT_ID) return;
+    if (!TROVO_CHANNEL_ID || !TROVO_CLIENT_ID) {
+        console.log("❌ Trovo Config Missing: Check Secrets.");
+        return;
+    }
     try {
         const res = await axios.get(`https://open-api.trovo.live/openplatform/chat/channel/${TROVO_CHANNEL_ID}`, {
-            headers: { 'Accept': 'application/json', 'Client-ID': process.env.TROVO_CLIENT_ID }
+            headers: { 
+                'Accept': 'application/json', 
+                'Client-ID': TROVO_CLIENT_ID 
+            }
         });
-        res.data.chats.forEach(chat => relayToTwitch('TROVO', chat.nick_name, chat.content));
-    } catch (e) { console.log("⚠️ Trovo Sync Waiting..."); }
+        
+        // LOG RAW DATA to prove connection
+        // console.log(`🔍 Trovo Ping: ${res.status} (Chats: ${res.data?.chats?.length || 0})`);
+
+        if (res.data && res.data.chats) {
+            res.data.chats.forEach(chat => {
+                // Deduplicate logic could go here, but for now we force relay to prove it works
+                relayToTwitch('TROVO', chat.nick_name, chat.content);
+            });
+        }
+    } catch (e) { 
+        console.log(`⚠️ Trovo Error: ${e.response?.status || e.message}`); 
+    }
 }
 
-// --- 8. TWITCH -> DISCORD WATCHER ---
+// --- 7. DISCORD WATCHER (Embeds) ---
 client.on('message', (channel, tags, message, self) => {
     if (!DISCORD_WEBHOOK) return;
     const user = tags['display-name'] || tags.username;
     const color = tags.color ? parseInt(tags.color.replace('#', ''), 16) : 16736031;
-
+    
     axios.post(DISCORD_WEBHOOK, {
         username: "Werewolf Pack Relay",
         avatar_url: "https://raw.githubusercontent.com/KFruti88/Universal-Stream-Overlay/main/images/werewolf3788.png",
         embeds: [{ description: `**${user}**: ${message}`, color: color, timestamp: new Date() }]
-    }).catch(() => {});
+    }).catch(err => console.log("❌ Discord Webhook Failed"));
 });
 
-// --- 9. STARTUP SEQUENCE ---
-console.log("🐺 Werewolf Master Engine V9.0: INITIATING...");
+// --- 8. STARTUP ---
+console.log("🐺 Werewolf Master Engine V9.5: TRUTH SERUM MODE");
+console.log(`ℹ️ Config Check: YT=${!!YOUTUBE_ID}, TrovoID=${!!TROVO_CHANNEL_ID}, TrovoClient=${!!TROVO_CLIENT_ID}`);
+
 client.connect().then(() => {
     console.log("✅ Engine Hub: Twitch Online.");
-    connectTikTok();
-    if (YOUTUBE_ID) {
-        youtube.start();
-        console.log("✅ YouTube Bridge ACTIVE");
-    }
-    if (TROVO_CHANNEL_ID) setInterval(fetchTrovoChat, 30000);
     
-    // Start the API server for Facebook Bridge
-    app.listen(process.env.PORT || 3000, () => console.log("✅ Universal Gate Ready."));
+    // Start Listeners
+    connectTikTok();
+    
+    if (YOUTUBE_ID) {
+        console.log(`Attempting YouTube Connection for Channel: ${YOUTUBE_ID}`);
+        youtube.start().then(() => console.log("✅ YouTube Bridge STARTUP SUCCESS")).catch(e => console.log(`❌ YouTube Startup Failed: ${e}`));
+    }
+    
+    if (TROVO_CHANNEL_ID) {
+        console.log("✅ Trovo Polling Started (30s interval)");
+        setInterval(fetchTrovoChat, 30000);
+    }
+
 }).catch(console.error);
