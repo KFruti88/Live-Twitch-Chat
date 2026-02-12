@@ -1,5 +1,5 @@
 # ==========================================
-# WEREWOLF MASTER ENGINE - V8.9 (TOTAL PACK)
+# WEREWOLF MASTER ENGINE - V8.9 (FIXED BUILD)
 # Standard: Full Code Mandate - Kevin & Scott
 # ==========================================
 
@@ -22,11 +22,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20' # Required for V8.9 stability
+          node-version: '20'
 
       - name: Install Dependencies
-        # Installs the specific tools for multi-platform relay
-        run: npm install tmi.js tiktok-live-connector youtube-chat axios dotenv
+        # Changed 'youtube-chat@^1.2.0' to 'youtube-chat@latest'
+        run: npm install tmi.js tiktok-live-connector youtube-chat@latest axios dotenv
 
       - name: Start Master Engine
         env:
