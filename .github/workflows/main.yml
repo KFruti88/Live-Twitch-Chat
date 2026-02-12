@@ -1,22 +1,20 @@
 # ==========================================
-# WEREWOLF ALL-IN-ONE RELAY WORKFLOW
+# WEREWOLF MASTER ENGINE - V8.9 (TOTAL PACK)
 # Standard: Full Code Mandate - Kevin & Scott
-# Updated: 2026-02-08 (Public Tunneling Fix)
+# Purpose: Stable 24/7 Multi-Relay (TT+YT+Trovo -> Twitch -> Discord)
 # ==========================================
 
-name: Werewolf All-In-One Relay
+name: Werewolf Master Engine V8.9
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to start it manually from GitHub
 
 jobs:
   relay:
     runs-on: ubuntu-latest
-    concurrency:
-      group: relay-group
-      cancel-in-progress: true
+    timeout-minutes: 360 # Max runtime for a single job
     
     steps:
       - name: Checkout Code
@@ -28,19 +26,19 @@ jobs:
           node-version: '20'
 
       - name: Install Dependencies
-        run: |
-          npm install tmi.js tiktok-live-connector express axios discord.js cors localtunnel
+        run: npm install tmi.js tiktok-live-connector youtube-chat axios dotenv
 
-      - name: Start Relay with Public Tunnel
+      - name: Start Master Engine
         env:
-          TWITCH_OAUTH: ${{ secrets.TWITCH_ACCESS_TOKEN }}
+          # Twitch Auth
+          TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          
+          # Platform IDs
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          TROVO_CHANNEL_ID: ${{ secrets.TROVO_CHANNEL_ID }}
+          TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
+          
+          # Discord Relay
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          TWITCH_BROADCASTER_ID: ${{ secrets.TWITCH_BROADCASTER_ID }}
-          WP_RELAY_URL: ${{ secrets.WP_RELAY_URL }}
-          PORT: 3000
-        # This starts the bot AND opens a tunnel to the internet
-        run: |
-          node relay.js & 
-          npx lt --port 3000 --subdomain werewolf-relay
+        run: node relay.js
