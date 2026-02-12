@@ -1,7 +1,7 @@
 /* ==========================================================================
-   WEREWOLF MASTER ENGINE - V8.9 (TOTAL PACK + WATCHER)
+   WEREWOLF MASTER ENGINE - V8.9.1 (YOUTUBE EVENT FIX)
    Standard: Full Code Mandate - Kevin & Scott
-   Purpose: 24/7 Multi-Relay (TT + YT + Trovo -> Twitch -> Discord)
+   Purpose: Stable 24/7 Relay (TikTok + YouTube + Trovo -> Twitch -> Discord)
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -64,11 +64,19 @@ function connectTikTok() {
 }
 tiktok.on('chat', data => relayToTwitch('TIKTOK', data.uniqueId, data.comment));
 
-// --- 6. YOUTUBE BRIDGE ---
+// --- 6. YOUTUBE BRIDGE (Updated for v2.2.0+) ---
 const youtube = new LiveChat({ channelId: YOUTUBE_ID });
-youtube.on('comment', (comment) => {
-    const text = comment.message.map(m => m.text).join('');
-    relayToTwitch('YOUTUBE', comment.author.name, text);
+
+// Changed from 'comment' to 'message' to match the latest library standards
+youtube.on('message', (msg) => {
+    const user = msg.author.name;
+    const text = msg.message.map(part => part.text).join('');
+    relayToTwitch('YOUTUBE', user, text);
+});
+
+youtube.on('error', (err) => {
+    console.log("⚠️ YouTube Syncing...");
+    setTimeout(() => youtube.start(), 60000);
 });
 
 // --- 7. TROVO BRIDGE (API Polling) ---
@@ -82,23 +90,27 @@ async function fetchTrovoChat() {
     } catch (e) { console.log("⚠️ Trovo Sync Waiting..."); }
 }
 
-// --- 8. TWITCH EVENT HANDSHAKE ---
+// --- 8. TWITCH EVENT HANDSHAKE (WATCHER) ---
 client.on('message', (channel, tags, message, self) => {
     const user = tags['display-name'] || tags.username;
     const userColor = tags.color ? parseInt(tags.color.replace('#', ''), 16) : 16736031;
     
-    // Everything that happens on Twitch goes to Discord
+    // Watcher: Forward every Twitch message to Discord instantly
     sendToDiscord(user, message, userColor);
 });
 
 // --- 9. STARTUP SEQUENCE ---
-console.log("🐺 Werewolf Master Engine V8.9: INITIATING...");
+console.log("🐺 Werewolf Master Engine V8.9.1: INITIATING...");
 client.connect().then(() => {
     console.log("✅ Engine Hub: Twitch Online.");
     connectTikTok();
-    if (YOUTUBE_ID) youtube.start();
+    if (YOUTUBE_ID) {
+        youtube.start();
+        console.log("✅ YouTube Bridge ACTIVE");
+    }
     if (TROVO_CHANNEL_ID) setInterval(fetchTrovoChat, 30000);
-    sendToDiscord("SYSTEM", "Master Engine V8.9 is now ONLINE.");
+    sendToDiscord("SYSTEM", "Master Engine V8.9.1 is now ONLINE.");
 }).catch(console.error);
 
+// Keep-Alive Heartbeat
 setInterval(() => console.log("💓 Heartbeat: Master Relay Active..."), 600000);
