@@ -1,7 +1,6 @@
 # ==========================================
 # WEREWOLF MASTER ENGINE - V8.9 (TOTAL PACK)
 # Standard: Full Code Mandate - Kevin & Scott
-# Purpose: Stable 24/7 Multi-Relay (TT+YT+Trovo -> Twitch -> Discord)
 # ==========================================
 
 name: Werewolf Master Engine V8.9
@@ -9,12 +8,12 @@ name: Werewolf Master Engine V8.9
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # Allows you to start it manually from GitHub
+  workflow_dispatch:
 
 jobs:
   relay:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Max runtime for a single job
+    timeout-minutes: 360
     
     steps:
       - name: Checkout Code
@@ -23,22 +22,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20' # Required for V8.9 stability
 
       - name: Install Dependencies
+        # Installs the specific tools for multi-platform relay
         run: npm install tmi.js tiktok-live-connector youtube-chat axios dotenv
 
       - name: Start Master Engine
         env:
-          # Twitch Auth
           TWITCH_ACCESS_TOKEN: ${{ secrets.TWITCH_ACCESS_TOKEN }}
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
-          
-          # Platform IDs
           YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
           TROVO_CHANNEL_ID: ${{ secrets.TROVO_CHANNEL_ID }}
           TROVO_CLIENT_ID: ${{ secrets.TROVO_CLIENT_ID }}
-          
-          # Discord Relay
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: node relay.js
