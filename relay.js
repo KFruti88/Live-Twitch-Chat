@@ -1,7 +1,7 @@
 /* ==========================================================================
-   WEREWOLF UNIFIED STRIKE ENGINE - V8.6 (DIRECT-LINK BUILD)
-   Standard: Full Code Mandate (No Snippets) - Kevin & Scott
-   Purpose: Stable 24/7 Chat Relay (TikTok + YouTube -> Twitch Chat)
+   WEREWOLF UNIFIED STRIKE ENGINE - V8.6 (CRASH-PROOF BUILD)
+   Standard: Full Code Mandate - Kevin & Scott
+   Purpose: Stable 24/7 Relay (TikTok + YouTube -> Twitch)
    ========================================================================== */
 
 const tmi = require('tmi.js');
@@ -11,14 +11,13 @@ const { LiveChat } = require('youtube-chat');
 // --- 1. CONFIGURATION ---
 const TWITCH_CHANNEL = 'werewolf3788';
 const TIKTOK_USER = 'k082412';
-const YOUTUBE_ID = process.env.YOUTUBE_CHANNEL_ID; // Your UC... ID from Secrets
+const YOUTUBE_ID = process.env.YOUTUBE_CHANNEL_ID;
 
 // --- 2. THE TWITCH BOT (OUTPUT) ---
 const client = new tmi.Client({
     identity: {
         username: TWITCH_CHANNEL,
-        // Using the fresh token from twitchtokengenerator.com
-        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}` 
+        password: `oauth:${process.env.TWITCH_ACCESS_TOKEN}`
     },
     channels: [TWITCH_CHANNEL]
 });
@@ -32,15 +31,17 @@ function postToTwitch(platform, user, message) {
     }
 }
 
-// --- 4. TIKTOK LISTENER (INPUT) ---
+// --- 4. THE CRASH-PROOF TIKTOK BRIDGE ---
 const tiktok = new WebcastPushConnection(TIKTOK_USER);
 
-function startTikTok() {
+function connectTikTok() {
+    console.log(`🐺 Attempting TikTok Sync for ${TIKTOK_USER}...`);
     tiktok.connect()
         .then(() => console.log("✅ TikTok Bridge ACTIVE"))
-        .catch(() => {
-            console.log("🔄 TikTok retry in 60s...");
-            setTimeout(startTikTok, 60000);
+        .catch(err => {
+            // SILENT ERROR: Logs the issue but DOES NOT crash the bot
+            console.log("⚠️ TikTok is Offline/Unavailable. Retrying in 60s...");
+            setTimeout(connectTikTok, 60000); 
         });
 }
 
@@ -49,6 +50,7 @@ tiktok.on('chat', data => {
 });
 
 // --- 5. YOUTUBE LISTENER (INPUT) ---
+// This runs independently of the TikTok bridge
 const youtube = new LiveChat({ channelId: YOUTUBE_ID });
 
 youtube.on('comment', (comment) => {
@@ -64,12 +66,15 @@ youtube.on('error', (err) => {
 // --- 6. STARTUP SEQUENCE ---
 client.connect()
     .then(() => {
-        console.log("🐺 Strike Engine 8.6: Twitch Bot Connected.");
-        startTikTok();
-        // Only start YouTube if ID is present
+        console.log("🐺 Strike Engine 8.6 Ready.");
+        connectTikTok(); // Start TikTok Listener
+        
         if (YOUTUBE_ID) {
-            youtube.start();
+            youtube.start(); // Start YouTube Listener
             console.log("✅ YouTube Bridge ACTIVE");
         }
     })
-    .catch(console.error);
+    .catch(err => {
+        console.error("❌ Twitch Connection Failed. Check your Token.");
+        process.exit(1); // Only exit if the main output (Twitch) fails
+    });
